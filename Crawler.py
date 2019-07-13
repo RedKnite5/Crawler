@@ -20,6 +20,7 @@ distance_diff = 70
 default_max_health = 100
 default_damage = 10
 heal_pot_val = 50
+slime_heart_val = 5
 
 smw = w / dun_w  # width of a room in pixels
 smh = h / dun_h
@@ -28,8 +29,6 @@ monsters_killed = 0
 
 master = tk.Tk()
 master.title(string="The Dungeon")  # window name
-
-#master.geometry("500x400")
 
 end_font = font.Font(size=40)  # more advanced variable initialization
 empty_menu = tk.Menu(master)
@@ -173,8 +172,8 @@ class Player(object):
 
 		hold = ""
 		for key, val in self.inven.items():
-			hold += str(key).title() + ": " + str(val.amount) + "\n"
-		output.set(hold)
+			hold += "\n" + str(key).title() + ": " + str(val.amount)
+		output.set(hold[1:])
 
 p = Player()  # player creation
 
@@ -183,7 +182,7 @@ class Enemy(object):
 	def __init__(self): #   create enemy
 		self.alive = True
 		self.max_health = 1
-		self.en_health = 1
+		self.health = 1
 		self.damage = 1
 		self.loot = {"undefined_collectable_item": Collectable_Item()}  # must be done again after stats are finalized
 		self.image = default_tkimage
@@ -195,7 +194,7 @@ class Enemy(object):
 		cbt_scr.create_rectangle(w + 90, 10, w - 10, 30) # enemy health bar
 		
 		cbt_scr.create_rectangle(   # enemy health
-			w + 90, 10, w + 90 - (100 * self.en_health / self.max_health), 30,
+			w + 90, 10, w + 90 - (100 * self.health / self.max_health), 30,
 			fill="red", tags="en_bar")
 		
 		cbt_scr.create_rectangle(
@@ -221,12 +220,12 @@ class Enemy(object):
 		output.set("The enemy did " + str(damage_delt) + " damage!")
 		
 	def be_attacked(self):  # the player attacks
-		self.en_health -= p.damage
-		if self.en_health <= 0:
+		self.health -= p.damage
+		if self.health <= 0:
 			self.die()
 		cbt_scr.coords(
 			"en_bar",
-			w + 90, 10, w + 90 - (100 * self.en_health / self.max_health), 30)
+			w + 90, 10, w + 90 - (100 * self.health / self.max_health), 30)
 		if self.alive == True:
 			self.en_attack()
 		
@@ -255,10 +254,10 @@ class Enemy(object):
 class Goblin(Enemy):
 	'''Common weak enemy'''
 	
-	def __init__(self): #   create enemy
+	def __init__(self):
 		super().__init__()
 		self.max_health = rand.randint(30, 40) + monsters_killed
-		self.en_health = self.max_health
+		self.health = self.max_health
 		self.damage = rand.randint(3, 8) + monsters_killed // 3
 		self.loot = {
 			"gold": Gold(self.max_health // 3 + self.damage // 2 + 2)
@@ -274,11 +273,13 @@ class Slime(Enemy):
 	def __init__(self):
 		super().__init__()
 		self.max_health = rand.randint(50, 70) + (3 * monsters_killed) // 2
-		self.en_health = self.max_health
+		self.health = self.max_health
 		self.damage = rand.randint(10, 20) + monsters_killed // 2
 		self.loot = {
 			"gold": Gold(self.max_health // 3 + self.damage // 2 + 2)
 		}
+		if rand.randint(0, 15) == 0:
+			self.loot["slime heart"] = Slime_Heart()
 		
 		self.image = slime_tkimage
 
@@ -331,7 +332,9 @@ class Equipable_Item(Collectable_Item):
 				p.equipment.pop(self.name)
 		
 
-class Buyable_Item(Collectable_Item):  # items for shop
+class Buyable_Item(Collectable_Item):
+	'''An item that is sold in the shop'''
+
 	def __init__(self):
 		super().__init__()
 		self.cost = 0
@@ -341,6 +344,8 @@ class Buyable_Item(Collectable_Item):  # items for shop
 		return self.name
 		
 	def effect(self):
+		"The effect the item has just my having it"
+
 		pass
 
 
@@ -357,6 +362,21 @@ class Health_Pot(Usable_Item):
 		if p.health > p.max_health:
 			p.health = p.max_health
 		
+		update_healthbar()
+
+
+class Slime_Heart(Usable_Item):
+	'''An item that increases the player's max HP'''
+	
+	def __init__(self):
+		super().__init__()
+		self.name = "slime heart"
+
+	def use(self):
+		super().use()
+		p.max_health += slime_heart_val
+		p.health += slime_heart_val
+
 		update_healthbar()
 
 
@@ -422,8 +442,12 @@ def left_key(event):
 	if screen == "navigation":
 		p.move("west")
 		
-def enter_key(event):   # other key binding functions
+def enter_key(event):
+	'''This function triggers when you press the enter key in the
+	entry box. It is to use or equip something in your inventory'''
+
 	item = entry.get().lower()
+
 	if item in p.inven:
 		if p.inven[item].amount > 0:
 			if isinstance(p.inven[item], Usable_Item):
@@ -439,6 +463,7 @@ def enter_key(event):   # other key binding functions
 
 
 def occupied_equipment(ment):
+	"Figure out what equipment spaces are used"
 	vals = tuple(ment.values())
 	total = []
 	for i in vals:
@@ -463,6 +488,8 @@ def update_healthbar():
 
 
 def buy_item_fact(item_name, amount=1, *args):
+	'''Factor for buying things in the shop'''
+
 	def buy_specific_item():
 		for i in range(amount):
 			item = buyable_items[item_name](*args)
@@ -497,11 +524,15 @@ max_use_body_part = {
 }
 
 def cur_room():
+	"Return the Room object that they player is currently in"
+
 	room = dun[p.loc[0]][p.loc[1]]
 	return(room)
 
 
-def clear_screen():  # remove all widgets
+def clear_screen():
+	"Remove all widgets"
+
 	for i in navigation_widgets + fight_widgets + other_widgets:
 		i.grid_remove()
 	master.config(menu=empty_menu)
@@ -569,26 +600,11 @@ def lose():
 	screen = "game over"
 	clear_screen()
 	game_over.grid(row=0,column=0)
-	
-
-def loot_gen(enemy):
-	loot = {}
-	if type(enemy) == Enemy:
-		loot["undefined_collectable_item"] = Collectable_Item()
-	elif type(enemy) == Goblin:
-		loot["gold"] = Gold(enemy.max_health // 3 + enemy.damage // 2 + 2)
-		if rand.randint(0, 2) == 0:
-			loot["health potion"] = Health_Pot()
-	elif type(enemy) == Slime:
-		pass
-		
-	return loot
 
 
 def update_stats():
 	stats_output.set(
-		"Max Health: {0}\nDamage: {1}\nDefence: {2}".format(
-			p.max_health, p.damage, p.defence))
+		"Damage: {0}\nDefence: {1}".format(p.damage, p.defence))
 
 
 def restart():
@@ -643,8 +659,6 @@ def create_display():
 dun = gen_dun(1)
 
 b = [tk.Button(master) for i in range(5)] # button creation
-#for i, k in enumerate(b):
-#	k.configure(text="b" + str(i))
 	
 b[0].configure(text="North", command=move_north) # button configuation
 b[3].configure(text="South", command=move_south)
@@ -724,6 +738,7 @@ master.bind("<Up>", up_key)  # key bindings
 master.bind("<Down>", down_key)
 master.bind("<Right>", right_key)
 master.bind("<Left>", left_key)
+
 master.bind("<Return>", enter_key)
 disp.bind("<Button 1>", room_info)
 
