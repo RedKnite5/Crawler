@@ -142,6 +142,8 @@ class Player(object):
 		self.health = self.max_health
 		self.damage = default_damage
 		self.defence = 0
+		self.experiance = 0
+		self.lvl = 1
 		self.inven = {"gold": Gold(starting_gold)}
 		self.equipment = {}
 		
@@ -179,18 +181,25 @@ p = Player()  # player creation
 
 
 class Enemy(object):
+	'''General enemy class. Includes set up for fights, attacking, being
+	attacked, and returning loot'''
+
 	def __init__(self): #   create enemy
 		self.alive = True
 		self.max_health = 1
 		self.health = 1
 		self.damage = 1
-		self.loot = {"undefined_collectable_item": Collectable_Item()}  # must be done again after stats are finalized
+		self.loot = {   # must be done again after stats are finalized
+			"undefined_collectable_item": Collectable_Item()}
 		self.image = default_tkimage
 		
 	def fight(self):
+		'''Set up fight screen'''
+		
 		global screen
 		
 		screen = "fight"
+		cbt_scr.delete("all")
 		cbt_scr.create_rectangle(w + 90, 10, w - 10, 30) # enemy health bar
 		
 		cbt_scr.create_rectangle(   # enemy health
@@ -210,7 +219,8 @@ class Enemy(object):
 		cbt_scr.create_image(     # enemy icon
 			210, 40, image=self.image, anchor="nw")
 	
-	def en_attack(self):  # attack the player
+	def en_attack(self):
+		"Attack the player"
 		damage_delt = 0
 		damage_delt = round(self.damage * (1 - 2 * atan(p.defence / 20) / pi))
 		p.health -= damage_delt
@@ -219,7 +229,9 @@ class Enemy(object):
 		update_healthbar()
 		output.set("The enemy did " + str(damage_delt) + " damage!")
 		
-	def be_attacked(self):  # the player attacks
+	def be_attacked(self):
+		"The player attacks. The enemy is damaged"
+
 		self.health -= p.damage
 		if self.health <= 0:
 			self.die()
@@ -237,7 +249,7 @@ class Enemy(object):
 		hold = "You got: \n"
 		for key, val in self.loot.items():  # display loot
 			hold += str(key).title() + ": " + str(val.amount) + "\n"
-		output.set(hold)
+		output.set(hold[:-1])
 		
 		disp.delete("enemy" + str(p.loc[0]) + "," + str(p.loc[1]))
 		cur_room().info = "This is an empty room."
@@ -258,7 +270,7 @@ class Goblin(Enemy):
 		super().__init__()
 		self.max_health = rand.randint(30, 40) + monsters_killed
 		self.health = self.max_health
-		self.damage = rand.randint(3, 8) + monsters_killed // 3
+		self.damage = rand.randint(3, 6) + monsters_killed // 3
 		self.loot = {
 			"gold": Gold(self.max_health // 3 + self.damage // 2 + 2)
 		}
