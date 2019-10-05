@@ -282,9 +282,13 @@ class Empty(Encounter):
 
 class Stairs(Encounter):
 
-	image = Image.open("dungeon_stairs.png")
+	image = Image.open("dungeon_stairs.png")  # image of stairs
 	image = image.resize((180, 240))
 	image = ImageTk.PhotoImage(image)
+	
+	icon = Image.open("stairs_icon.png")  # icon of stairs
+	icon = ImageOps.mirror(icon.resize((int(SMW / 2), int(SMH / 2))))
+	icon = ImageTk.PhotoImage(icon)
 
 	def meet(self, disp="center"):
 		super().meet(disp)
@@ -294,6 +298,7 @@ class Stairs(Encounter):
 		inter_btn.grid(row=1, column=1)
 		inter_btn.config(text="Decend")
 		leave_btn.grid(row=1, column=2)
+		# having a button labeled "Leave" also sounds like going down the stairs
 		leave_btn.config(text="Leave")
 
 
@@ -501,7 +506,7 @@ class EquipableItem(CollectableItem):
 			if p.equipment[self.name][1] <= 0:
 				p.equipment.pop(self.name)
 			out.config(text="You unequip the " + self.name)
-		
+
 
 class BuyableItem(CollectableItem):
 	"""An item that is sold in the shop"""
@@ -659,6 +664,7 @@ def left_key(event):
 	if screen == "navigation" and master.focus_get() is not entry:
 		p.move("west")
 
+
 def mouse_click(event):
 	"""The mouse is clicked in the master window. Used to unfocus from the
 	entry widget"""
@@ -717,7 +723,7 @@ def search_inventory(item, searching="inventory"):
 		if m:
 			items.append(f"tier {m.group(1)} {item}")
 	return items
-	
+
 
 def enter_key(event):
 	"""This function triggers when you press the enter key in the
@@ -970,6 +976,9 @@ def leave():
 		flee()
 	else:
 		navigation_mode()
+		disp.create_image(
+			int(SMW * (p.loc[0] + .5)), int(SMH * (p.loc[1] + .5)),
+			image=cur_room().en.icon, anchor="center")
 
 
 def interact():
