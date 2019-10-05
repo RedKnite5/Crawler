@@ -34,7 +34,7 @@ DEFAULT_MAX_HEALTH = 100
 DEFAULT_DAMAGE = 10
 HEAL_POT_VAL = 50    # the amount of a health potion heals
 SLIME_HEART_VAL = 5  # the amount of health a slime heart gives
-ENEMIES = False
+ENEMIES = True
 
 screen = "navigation"
 monsters_killed = 0
@@ -265,6 +265,7 @@ class Encounter(object):
 		
 		global screen
 		
+		screen = "encounter"
 		cbt_scr.delete("all")
 		self.show_ico(place=disp)
 	
@@ -327,6 +328,7 @@ class Enemy(Encounter):
 	def meet(self):
 		super().meet()
 		
+		global screen
 		screen = "fight"
 		clear_screen()
 		cbt_scr.grid(row=0, column=0, columnspan=3)
@@ -646,22 +648,22 @@ def movement_factory(direction): # necessary for tkinter key binding reasons
 def up_key(event):  # key binding functions
 	"""The up arrow is pressed"""
 	
-	if screen == "navigation" and master.focus_get() is not entry:
+	if screen != "fight" and master.focus_get() is not entry:
 		p.move("north")
 def down_key(event):
 	"""The down arrow is pressed"""
 	
-	if screen == "navigation" and master.focus_get() is not entry:
+	if screen != "fight" and master.focus_get() is not entry:
 		p.move("south")
 def right_key(event):
 	"""The right key is pressed"""
 	
-	if screen == "navigation" and master.focus_get() is not entry:
+	if screen != "fight" and master.focus_get() is not entry:
 		p.move("east")
 def left_key(event):
 	"""The left arrow is pressed"""
 	
-	if screen == "navigation" and master.focus_get() is not entry:
+	if screen != "fight" and master.focus_get() is not entry:
 		p.move("west")
 
 
@@ -1160,16 +1162,17 @@ if __name__ == "__main__":
 
 	att_b = tk.Button(master, text="Attack", command=attack)
 	run_b = tk.Button(master, text="Flee", command=flee)
-
-	# collections of widgets
-	fight_widgets = [cbt_scr, att_b, run_b]
-	navigation_widgets = b[:-1] + [disp, healthbar, out]
-	other_widgets = [b[4], entry, stats, restart_button, game_over]
-
+	
 	inter_btn = tk.Button(
 		master, text="", command=interact)
 	leave_btn = tk.Button(
 		master, text="", command=leave)
+
+	# collections of widgets
+	fight_widgets = [cbt_scr, att_b, run_b]
+	navigation_widgets = b[:-1] + [disp, healthbar, out]
+	other_widgets = [b[4], entry, stats, restart_button, game_over,
+		inter_btn, leave_btn]
 
 	master.bind("<Up>", up_key)  # key bindings
 	master.bind("<Down>", down_key)
