@@ -1152,6 +1152,7 @@ if __name__ == "__main__":
 	att_b = tk.Button(master, text="Attack", command=attack)
 	run_b = tk.Button(master, text="Flee", command=flee)
 
+	# collections of widgets
 	fight_widgets = [cbt_scr, att_b, run_b]
 	navigation_widgets = b[:-1] + [disp, healthbar, out]
 	other_widgets = [b[4], entry, stats, restart_button, game_over]
