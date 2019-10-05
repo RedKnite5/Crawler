@@ -28,12 +28,13 @@ H=300
 SMW = W / DUN_W  # width of a room in pixels
 SMH = H / DUN_H
 COST_MUL = 1
-STARTING_GOLD = 0
+STARTING_GOLD = 300
 DISTANCE_DIFF = 70
 DEFAULT_MAX_HEALTH = 100
 DEFAULT_DAMAGE = 10
 HEAL_POT_VAL = 50    # the amount of a health potion heals
 SLIME_HEART_VAL = 5  # the amount of health a slime heart gives
+ENEMIES = False
 
 screen = "navigation"
 monsters_killed = 0
@@ -41,11 +42,6 @@ monsters_killed = 0
 master = tk.Tk()
 
 end_font = font.Font(size=40)  # more advanced variable initialization
-output = tk.StringVar()
-output.set("Welcome to The Dungeon. Come once, stay forever!")
-
-stats_output = tk.StringVar()
-stats_output.set("")
 
 
 class Floor(object):
@@ -53,6 +49,8 @@ class Floor(object):
 	
 	def __init__(self, floor):
 		"""Create the dungeon and populate it"""
+		
+		self.stairs = False
 		
 		self.floor = floor
 		self.dun = []
@@ -62,7 +60,7 @@ class Floor(object):
 				column.append(Room(
 					(abs(i - int((DUN_W - 1) / 2))
 					+ abs(k - int((DUN_H - 1) / 2)))
-					* DISTANCE_DIFF))
+					* DISTANCE_DIFF, self))
 			self.dun.append(column)
 		self.dun[int((DUN_W - 1) / 2)][int((DUN_H - 1) / 2)].type = 0
 		self.dun[int((DUN_W - 1) / 2)][int((DUN_H - 1) / 2)].init2()
@@ -76,15 +74,15 @@ class Floor(object):
 class Room(object):
 	"""Class for individual cells with encounters in them."""
 	
-	stairs_image = Image.open("the_dungeon_stairs.png")
-	stairs_image = ImageTk.PhotoImage(stairs_image)
-	
-	
-	def __init__(self, difficulty):
+	def __init__(self, difficulty, floor):
 		"""Room creation"""
 		
+		self.floor = floor
 		self.visited = False
-		self.type = rand.randint(1, 1000) + difficulty
+		if ENEMIES:
+			self.type = rand.randint(1, 1000) + difficulty
+		else:
+			self.type = 1
 		self.init2()
 	
 	# this allows variable to be reset without doing them all manually
@@ -97,7 +95,10 @@ class Room(object):
 			self.en = Goblin()
 		elif 100 >= self.type >= 1:
 			self.info = "This is an empty room"
-			self.en = Enemy()
+			self.en = Empty()
+		else:
+			self.info = "Unknown"
+			self.en = Empty()
 		
 		if self.type > 100:
 			self.info = f"This is a room with a {self.en.name}"
@@ -106,14 +107,13 @@ class Room(object):
 			self.visited = True
 			self.info = ("This is the starting room. There is nothing of "
 			"significance here.")
-			self.en = Enemy()
+			self.en = Empty()
 		
 		elif self.type == -1:
 			self.info = "Here are the stairs to the next floor"
-			
-			
-			pass
-		
+			self.floor.stairs = True
+			self.en = Stairs()
+
 
 	def enter(self):
 		"""Set up to enter a room"""
@@ -121,23 +121,15 @@ class Room(object):
 		self.visited = True
 		floor_finished = check_all_rooms()
 		
-		if not floor_finished:
-			output.set(self.info)
-			if self.en.alive:
-				if self.type > 100:
-					clear_screen()
-					cbt_scr.grid(row=0, column=0, columnspan=3)
-					att_b.grid(row=1, column=0)
-					b[4].grid(row=1, column=1)
-					stats.grid(row=1, column=3)
-					run_b.grid(row=1, column=2)
-					out.grid(row=2, column=0, columnspan=3)
-					entry.grid(row=3, column=0, columnspan=3)
-					
-					self.en.fight()
-		else:
+		if floor_finished and not self.floor.stairs:
 			self.type = -1  # make this room stairs down to the next floor
 			self.init2()
+		
+		out.config(text=self.info)
+		if getattr(self.en, "alive", False):
+			self.en.meet()
+		elif not isinstance(self.en, Enemy): # this isn't good practice
+			self.en.meet()
 
 
 @total_ordering  # used primarily for sorting items by amount
@@ -212,7 +204,7 @@ class Player(object):
 		self.inven = {"gold": Gold(amount=STARTING_GOLD)}
 		self.equipment = {}
 		
-	def move(self,dir):
+	def move(self, dir):
 		"""Player movement on map function"""
 		
 		# this is mostly redundent except for the starting room
@@ -247,10 +239,65 @@ class Player(object):
 		hold = ""
 		for key, val in self.inven.items():
 			hold += "\n" + str(key).title() + ": " + str(val.amount)
-		output.set(hold[1:])
+		out.config(text=hold[1:])
 
 
-class Enemy(object):
+class Encounter(object):
+	
+	image = Image.open("ImageNotFound_png.png")
+	image = image.resize((180, 180))
+	image = ImageTk.PhotoImage(image)
+	
+	@classmethod  # class method to give access to class variables for the class
+	def show_ico(cls, place="NW"):  # this method belongs to not just this base class
+		"""Display the image of the enemy"""
+		
+		if cls.image:
+			if place == "NW":
+				cbt_scr.create_image(   # encounter icon
+					210, 40, image=cls.image, anchor="nw")
+			elif place == "center":
+				cbt_scr.create_image(   # encounter icon
+					210, 130, image=cls.image, anchor="center") # change the numbers
+	
+	def meet(self, disp="NW"):
+		"""Start the encounter"""
+		
+		global screen
+		
+		cbt_scr.delete("all")
+		self.show_ico(place=disp)
+	
+	def leave(self):
+		navigation_mode()
+
+
+class Empty(Encounter):
+	image = None
+	
+	def meet(self):
+		super().meet()
+		self.leave()
+
+
+class Stairs(Encounter):
+
+	image = Image.open("dungeon_stairs.png")
+	image = image.resize((180, 240))
+	image = ImageTk.PhotoImage(image)
+
+	def meet(self, disp="center"):
+		super().meet(disp)
+		
+		clear_screen()
+		cbt_scr.grid(row=0, column=0, columnspan=4)
+		inter_btn.grid(row=1, column=1)
+		inter_btn.config(text="Decend")
+		leave_btn.grid(row=1, column=2)
+		leave_btn.config(text="Leave")
+
+
+class Enemy(Encounter):
 	"""General enemy class. Includes set up for fights, attacking, being
 	attacked, and returning loot"""
 	
@@ -270,14 +317,28 @@ class Enemy(object):
 		self.loot = {   # must be done again after stats are finalized
 			"undefined_collectable_item": CollectableItem()
 		}
+	
+	
+	def meet(self):
+		super().meet()
+		
+		screen = "fight"
+		clear_screen()
+		cbt_scr.grid(row=0, column=0, columnspan=3)
+		att_b.grid(row=1, column=0)
+		b[4].grid(row=1, column=1)
+		stats.grid(row=1, column=3)
+		run_b.grid(row=1, column=2)
+		out.grid(row=2, column=0, columnspan=3)
+		entry.grid(row=3, column=0, columnspan=3)
+		
+		self.fight()
 		
 	def fight(self):
 		"""Set up fight screen"""
 		
 		global screen
 		
-		screen = "fight"
-		cbt_scr.delete("all")
 		cbt_scr.create_rectangle(W + 90, 10, W - 10, 30) # enemy health bar
 		
 		cbt_scr.create_rectangle(   # enemy health
@@ -293,16 +354,6 @@ class Enemy(object):
 			60, H - 20,
 			text=f"{p.health}/{p.max_health}",
 			tags="fight_healthbar_text")
-		
-		# seperate function because that one must be a class method
-		self.show_ico()
-	
-	@classmethod  # class method to give access to class variables for the class
-	def show_ico(cls):  # this method belongs to not just this base class
-		"""Display the image of the enemy"""
-		
-		cbt_scr.create_image(   # enemy icon
-			210, 40, image=cls.image, anchor="nw")
 	
 	def attack(self):
 		"""Attack the player"""
@@ -313,7 +364,7 @@ class Enemy(object):
 		if p.health <= 0:
 			lose()
 		update_healthbar()
-		output.set("The enemy did " + str(damage_delt) + " damage!")
+		out.config(text="The enemy did " + str(damage_delt) + " damage!")
 		
 	def be_attacked(self):
 		"""The player attacks. The enemy is damaged"""
@@ -337,7 +388,7 @@ class Enemy(object):
 		hold = "You got: \n"
 		for key, val in self.loot.items():  # display loot
 			hold += str(key).title() + ": " + str(val.amount) + "\n"
-		output.set(hold[:-1])
+		out.config(text=hold[:-1])
 		
 		# remove enemy icon on map
 		disp.delete("enemy" + str(p.loc[0]) + "," + str(p.loc[1]))
@@ -349,7 +400,7 @@ class Enemy(object):
 			else:
 				p.inven[i] = self.loot[i]
 				
-		navigation_mode()
+		self.leave()
 
 
 class Goblin(Enemy):
@@ -406,7 +457,7 @@ class UsableItem(CollectableItem):
 	def use(self):
 		"""Use the item for what ever purpose it has"""
 		
-		output.set("Used " + self.name.title())
+		out.config(text="Used " + self.name.title())
 		
 		# should later change how consumable things work
 		# make not everything consumable? or add durability
@@ -427,10 +478,10 @@ class EquipableItem(CollectableItem):
 		
 		if (occupied_equipment(p.equipment).count(self.space[0]) >=
 			self.space[1]):
-			output.set(f"You can not equip more than {self.space[1]} of this")
+			out.config(text=f"You can not equip more than {self.space[1]} of this")
 		else:
 			self.equiped = True
-			output.set("You equip the " + self.name)
+			out.config(text="You equip the " + self.name)
 			# should rework how inventory interacts with equipment
 			p.inven[self.name] -= 1
 			
@@ -449,7 +500,7 @@ class EquipableItem(CollectableItem):
 			p.equipment[self.name][1] -= 1
 			if p.equipment[self.name][1] <= 0:
 				p.equipment.pop(self.name)
-			output.set("You unequip the " + self.name)
+			out.config(text="You unequip the " + self.name)
 		
 
 class BuyableItem(CollectableItem):
@@ -681,7 +732,7 @@ def enter_key(event):
 	# equip an item
 	if (not any(p.inven.get(name, 0) for name in inv_names) and
 		data["command"] in ("equip", "use")):
-		output.set("You do not have any of that")
+		out.config(text="You do not have any of that")
 		return
 		
 	elif not any(p.inven.get(name, 0) for name in inv_names):
@@ -690,17 +741,17 @@ def enter_key(event):
 			inv_name = inv_names[0]
 			
 		elif not len(inv_names): # len(inv_names) == 0
-			output.set("That item is not equiped")
+			out.config(text="That item is not equiped")
 			return
 			
 		else: # Mys line 1
-			output.set("More than one item fits that description")
+			out.config(text="More than one item fits that description")
 			return
 	elif len(inv_names) > 0:
 	
 		# If more than one value with at least one in the inventory, return
 		if sum(1 for name in inv_names if p.inven.get(name, 0)) > 1:
-			output.set("More than one item fits that description")
+			out.config(text="More than one item fits that description")
 			return
 		else:
 		
@@ -718,7 +769,7 @@ def enter_key(event):
 		try:
 			p.inven[inv_name].unequip()
 		except:
-			output.set(f"{inv_name.title()} is not equiped")
+			out.config(text=f"{inv_name.title()} is not equiped")
 	
 	elif data["command"] == "equip":
 		
@@ -744,9 +795,9 @@ def enter_key(event):
 				if screen == "fight":  # equiping items takes a turn
 					cur_room().en.attack()
 			else:
-				output.set("You do not have any of that")
+				out.config(text="You do not have any of that")
 		except Exception as e:
-			output.set("That item is not equipable")
+			out.config(text="That item is not equipable")
 	
 	elif data["command"] == "use":
 		try:   # if you can use the item
@@ -756,9 +807,9 @@ def enter_key(event):
 					# using items during a fight uses a turn
 					cur_room().en.attack()
 			else:
-				output.set("You do not have any of that")
+				out.config(text="You do not have any of that")
 		except:
-			output.set("That item is not usable")
+			out.config(text="That item is not usable")
 	
 	else:
 		done = False
@@ -780,11 +831,11 @@ def enter_key(event):
 					if screen == "fight":  # using items takes a turn
 						cur_room().en.attack()
 				except:
-					output.set("That item is not usable")
+					out.config(text="That item is not usable")
 		else:
-			output.set("You do not have any of that")
+			out.config(text="You do not have any of that")
 	else:
-		output.set("You do not have any of that")
+		out.config(text="You do not have any of that")
 
 
 def occupied_equipment(ment):
@@ -834,9 +885,9 @@ def buy_item_fact(item_name, amount=1, *args):
 					p.inven[item_name] = item
 				item.effect()    #  passive effect from having it
 				if item.plurale:
-					output.set("You bought " + item_name)
+					out.config(text="You bought " + item_name)
 				else:
-					output.set("You bought a " + item_name)
+					out.config(text="You bought a " + item_name)
 				p.inven["gold"] -= item.cost
 				if hasattr(item, "tier"):
 					# replace item in list of buyable items
@@ -851,7 +902,7 @@ def buy_item_fact(item_name, amount=1, *args):
 						+ str(new_item_cls().cost)),
 						command=buy_item_fact(new_item_cls.name))
 			else:
-				output.set("You do not have enough Gold for that")
+				out.config(text="You do not have enough Gold for that")
 	return buy_specific_item
 
 
@@ -874,7 +925,6 @@ def check_all_rooms():
 	"""Check if all rooms have been visited"""
 	
 	t = [room for li in dun for room in map(lambda a: a.visited, li)]
-	print(t)
 	return all(t)
 
 
@@ -909,10 +959,21 @@ def flee():
 			SMW * p.loc[0] + SMW / 4, SMH * p.loc[1] + SMH / 4,    # about
 			SMW * p.loc[0] + SMW * 3/4, SMH * p.loc[1] + SMH * 3/4,
 			fill="red", tags="enemy" + str(p.loc[0]) + "," + str(p.loc[1]))
-		output.set("You got away.")
+		out.config(text="You got away.")
 	else:
 		cur_room().en.attack()
-		output.set("You couldn't get away.")
+		out.config(text="You couldn't get away.")
+
+
+def leave():
+	if screen == "fight":
+		flee()
+	else:
+		navigation_mode()
+
+
+def interact():
+	pass
 
 
 def navigation_mode():
@@ -948,11 +1009,11 @@ def room_info(event):
 		clicked_room = dun[int(tag[0])][int(tag[1])]
 		
 		if int(tag[0]) == p.loc[0] and int(tag[1]) == p.loc[1]:
-			output.set("This is your current location.")
+			out.config(text="This is your current location.")
 		elif clicked_room.visited:
-			output.set(clicked_room.info)
+			out.config(text=clicked_room.info)
 		else:
-			output.set("Unknown")
+			out.config(text="Unknown")
 
 
 def lose():
@@ -960,13 +1021,14 @@ def lose():
 	
 	screen = "game over"
 	clear_screen()
-	game_over.grid(row=0,column=0)
+	game_over.grid(row=0, column=0)
 
 
 def update_stats():
 	"""Update the stats for the player"""
 	
-	stats_output.set(f"Damage: {p.damage}\nDefence: {p.defence}")
+	global stats
+	stats.config(text=f"Damage: {p.damage}\nDefence: {p.defence}")
 
 
 def restart():
@@ -989,7 +1051,7 @@ def restart():
 	navigation_mode()
 	disp.delete("all")
 	create_display()
-	output.set("Welcome to The Dungeon!")
+	out.config(text="Welcome to The Dungeon!")
 	
 
 def create_display():
@@ -1002,7 +1064,7 @@ def create_display():
 				fill="grey", tags=str(i) + "," + str(k))
 
 	disp.create_oval(
-		SMW * p.loc[0] ,SMH * p.loc[1], # player icon creation
+		SMW * p.loc[0], SMH * p.loc[1], # player icon creation
 		SMW * p.loc[0] + SMW, SMH * p.loc[1] +SMH,
 		fill = "green", tags = "player")
 
@@ -1050,12 +1112,15 @@ if __name__ == "__main__":
 		text=f"{p.health}/{p.max_health}",
 		tags="navigation_healthbar_text")
 
-	update_stats()
-	stats = tk.Message(master, textvariable=stats_output)
+	stats = tk.Message(master, text="")
 	stats.grid(row=1, column=1, columnspan=2)
+	update_stats()
 
 	# output text creation
-	out = tk.Message(master, textvariable=output, width=W + 100)
+	out = tk.Message(
+		master,
+		text="Welcome to The Dungeon. Come once, stay forever!",
+		width=W + 100)
 	out.grid(row=5, column=0, columnspan=4)
 
 	entry = tk.Entry(master)
@@ -1091,6 +1156,10 @@ if __name__ == "__main__":
 	navigation_widgets = b[:-1] + [disp, healthbar, out]
 	other_widgets = [b[4], entry, stats, restart_button, game_over]
 
+	inter_btn = tk.Button(
+		master, text="", command=interact)
+	leave_btn = tk.Button(
+		master, text="", command=leave)
 
 	master.bind("<Up>", up_key)  # key bindings
 	master.bind("<Down>", down_key)
