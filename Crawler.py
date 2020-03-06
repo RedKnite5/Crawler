@@ -1,3 +1,5 @@
+#!/cygdrive/c/Users/RedKnite/Appdata/local/programs/Python/Python38/python.exe
+
 import random as rand
 import re
 import tkinter as tk
@@ -23,10 +25,10 @@ from PIL import ImageTk
 	# 5)
 
 # should these be placed in a config file?
-DUN_W = 2   # number of rooms wide         # constant intialization
-DUN_H = 2
-W=300        # width of map screen in pixels
-H=300
+DUN_W = 3   # number of rooms wide         # constant intialization
+DUN_H = 3
+W = 300        # width of map screen in pixels
+H = 300
 SMW = W / DUN_W  # width of a room in pixels
 SMH = H / DUN_H
 COST_MUL = 1
@@ -44,14 +46,35 @@ STARTING_ROOM_TYPE = 0
 DOWN_STAIRS_TYPE = -1
 UP_STAIRS_TYPE = -2
 
-ENEMIES = True
+ENEMIES = False
 
 screen = "navigation"
 monsters_killed = 0
 
 master = tk.Tk()
 
-end_font = font.Font(size=40)  # more advanced variable initialization
+end_font = font.Font(size=40)
+
+
+class Dungeon(object):
+	def __init__(self):
+		self.floors = [Floor(0)]
+		self.floor_num = 0
+
+	def __getattr__(self, attr):
+		if attr == "current_floor":
+			return self.floors[self.floor_num]
+			
+	def __getitem__(self, index):
+		return self.floors[index]
+	
+	def gen_floor(self, up_stair_location, level="+1"):
+		if level[0] == "+" and level[1:].isdigit():
+			new_floor_num = self.floor_num + int(level[1:])
+		else:
+			new_floor_num = int(level)
+		
+		self.floors.append(Floor(new_floor_num, up_stair_location))
 
 
 class Floor(object):
@@ -70,19 +93,22 @@ class Floor(object):
 				column.append(Room(
 					(abs(i - int((DUN_W - 1) / 2))
 					+ abs(k - int((DUN_H - 1) / 2)))
-					* DISTANCE_DIFF, self))
+					* DISTANCE_DIFF,
+					{"x": i, "y": k, "floor": self.floor_num}))
 			self.dun.append(column)
 
-		self.center = (int((DUN_W - 1) / 2), int((DUN_H - 1) / 2))
+		center_room = self.dun[int((DUN_W - 1) / 2)][int((DUN_H - 1) / 2)]
 
-		if self.floor_num == 1:
-			self.dun[int((DUN_W - 1) / 2)][int((DUN_H - 1) / 2 # line cont-
-				)].type = STARTING_ROOM_TYPE
-			self.dun[self.center[0]][self.center[1]].init2()
+		if self.floor_num == 0:
+			center_room.type = STARTING_ROOM_TYPE
+			center_room.init2()
 		else:
-			self.dun[int((DUN_W - 1) / 2)][int((DUN_H - 1) / 2 # line cont-
-				)].type = UP_STAIRS_TYPE
-			self.dun[self.center[0]][self.center[1]].init2(dest=upstairs)
+			center_room.type = UP_STAIRS_TYPE
+			center_room.init2(dest=upstairs)
+		
+		
+		self.disp = create_display_canvas()
+		create_display(self.disp)
 
 
 	def __getitem__(self, key):
@@ -94,18 +120,21 @@ class Floor(object):
 class Room(object):
 	"""Class for individual cells with encounters in them."""
 
-	def __init__(self, difficulty, floor):
+	def __init__(self, difficulty, location):
 		"""Room creation"""
 
-		self.floor = floor
+		self.location = location
 		self.visited = False
 		if ENEMIES:
-			self.type = rand.randint(NON_VIOLENT_ENC_CUTOFF, 1000) + difficulty
+			self.type = rand.randint(
+				NON_VIOLENT_ENC_CUTOFF,
+				1000) + difficulty
 		else:
 			self.type = NON_VIOLENT_ENC_CUTOFF
 		self.init2()
 
-	# this function allows variable to be reset without doing them all manually
+	# This function allows variable to be reset without doing them all
+	# manually
 	def init2(self, **kwargs):
 		"""Set various variables that may need to be updated all together"""
 
@@ -133,11 +162,15 @@ class Room(object):
 		elif self.type == DOWN_STAIRS_TYPE:
 			self.info = "Here are the stairs to the next floor"
 			self.floor.stairs = True
-			self.en = Stairs()
+			self.en = Stairs(self.location)
 		elif self.type == UP_STAIRS_TYPE:
 			self.info = "Here are the stairs to the previous floor"
-			self.en = Stairs(dist=-1, to=kwargs["dest"])
+			self.en = Stairs(self.location, dist=-1, to=kwargs["dest"])
 
+
+	def __getattr__(self, atter):
+		if atter == "floor":
+			return dungeon[self.location["floor"]]
 
 	def enter(self):
 		"""Set up to enter a room"""
@@ -169,8 +202,10 @@ class CollectableItem(object):
 	def __str__(self):
 		return self.name
 
-	def __add__(self, other):  # math ops are here to allow manipulation of the
-		if isinstance(other, type(self)):  # amounts without too much extra work
+	 # math ops are here to allow manipulation of the
+	 # amounts without too much extra work
+	def __add__(self, other):
+		if isinstance(other, type(self)):
 			return type(self)(self.amount + other.amount)
 		else:
 			return type(self)(self.amount + other)
@@ -235,28 +270,28 @@ class Player(object):
 		"""Player movement on map function"""
 
 		# this is mostly redundent except for the starting room
-		dun[self.loc[0]][self.loc[1]].visited = True
-		disp.itemconfig(
+		dungeon.current_floor[self.loc[0]][self.loc[1]].visited = True
+		dungeon.current_floor.disp.itemconfig(
 			str(self.loc[0]) + "," + str(self.loc[1]),
 			fill="yellow")
 
 		if dir == "north" and self.loc[1] > 0:   # up
 			self.loc[1] -= 1
-			disp.move("player", 0, -1 * SMH)
+			dungeon.current_floor.disp.move("player", 0, -1 * SMH)
 		elif dir == "south" and self.loc[1] < DUN_H-1:  # down
 			self.loc[1] += 1
-			disp.move("player", 0, SMH)
+			dungeon.current_floor.disp.move("player", 0, SMH)
 		elif dir == "west" and self.loc[0] > 0:  # left
 			self.loc[0] -= 1
-			disp.move("player", -1 * SMW, 0)
+			dungeon.current_floor.disp.move("player", -1 * SMW, 0)
 		elif dir == "east" and self.loc[0] < DUN_W-1:  # right
 			self.loc[0] += 1
-			disp.move("player", SMW, 0)
+			dungeon.current_floor.disp.move("player", SMW, 0)
 
-		dun[self.loc[0]][self.loc[1]].enter()
+		dungeon.current_floor[self.loc[0]][self.loc[1]].enter()
 
-		dun[self.loc[0]][self.loc[1]].visited = True
-		disp.itemconfig(
+		dungeon.current_floor[self.loc[0]][self.loc[1]].visited = True
+		dungeon.current_floor.disp.itemconfig(
 			str(self.loc[0]) + "," + str(self.loc[1]),
 			fill="yellow")
 
@@ -275,8 +310,8 @@ class Encounter(object):
 	image = image.resize((180, 180))
 	image = ImageTk.PhotoImage(image)
 
-	@classmethod  # class method to give access to class variables for the class
-	# this method belongs to not just this base class
+	@classmethod  # Class method to give access to class variables for the
+	# class. This method belongs to not just this base class
 	def show_ico(cls, place="NW"):
 		"""Display the image of the enemy"""
 
@@ -292,6 +327,11 @@ class Encounter(object):
 		"""Start the encounter"""
 
 		global screen
+		
+		if isinstance(self, Stairs):
+			dungeon.current_floor.disp.create_image(
+				int(SMW * (p.loc[0] + .5)), int(SMH * (p.loc[1] + .5)),
+				image=cur_room().en.icon, anchor="center")
 
 		screen = "encounter"
 		cbt_scr.delete("all")
@@ -311,7 +351,7 @@ class Empty(Encounter):
 
 class Stairs(Encounter):
 
-	image = Image.open("dungeon_stairs.png")  # image of stairs
+	image = Image.open("dungeon_stairs.png")
 	image = image.resize((180, 240))
 	image = ImageTk.PhotoImage(image)
 
@@ -319,38 +359,57 @@ class Stairs(Encounter):
 	icon = ImageOps.mirror(icon.resize((int(SMW / 2), int(SMH / 2))))
 	icon = ImageTk.PhotoImage(icon)
 
-	def __init__(self, dist=+1, to=None):
+	def __init__(self, location, dist=+1, to=None):
 
-
+		self.location = location
+		self.dist = dist
 		if to:
 			self.to = to
-
-		if dist > 0:
-			dungeon.append(Floor(
-				cur_room().floor.floor_num + dist,
-				upstairs=self))
-			self.to = dungeon[-1].dun[
-				dungeon[-1].center[0]][dungeon[-1].center[1]]
+			self.dist = self.to["floor"] - self.location["floor"]
+		else:
+			self.to = {
+				"floor": self.location["floor"] + self.dist,
+				"x": int((DUN_W - 1) / 2),
+				"y": int((DUN_H - 1) / 2)
+			}
 
 	def interact(self):
-		global dun
-
-		dun = self.to.floor
-		p.floor = dun
+		
+		dungeon.gen_floor(self.location)
+		
+		dungeon.floor_num += self.dist
+		p.floor = dungeon.current_floor
+		p.loc = [self.to["x"], self.to["y"]]
+		
+		navigation_widgets[0] = dungeon.current_floor.disp
+		
 		navigation_mode()
-
+		
+		dungeon.current_floor.disp.coords("player", 
+			(SMW * p.loc[0],
+			SMH * p.loc[1],
+			SMW * p.loc[0] + SMW,
+			SMH * p.loc[1] +SMH))
 
 
 	def meet(self, disp="center"):
 		super().meet(disp)
+		
+		global screen
+		screen = "stairs"
 
 		clear_screen()
 		cbt_scr.grid(row=0, column=0, columnspan=4)
+		
 		inter_btn.grid(row=1, column=1)
-		inter_btn.config(text="Decend")
+		inter_btn.config(text="Decend" if self.dist > 0 else "Ascend")
+		inter_btn.config(command=self.interact)
+		
 		leave_btn.grid(row=1, column=2)
-		# having a button labeled "Leave" also sounds like going down the stairs
+		# Having a button labeled "Leave" also sounds like going down
+		# the stairs
 		leave_btn.config(text="Leave")
+		leave_btn.config(command=self.leave)
 
 
 class Enemy(Encounter):
@@ -358,8 +417,8 @@ class Enemy(Encounter):
 	attacked, and returning loot"""
 
 	# image is a class variable to reduce variable initialization
-	# (the repeated defining of self.image), copying of large variables, reduce
-	# amount of global variables, and keep related data together
+	# (the repeated defining of self.image), copying of large variables,
+	# reduce amount of global variables, and keep related data together
 	image = Image.open("ImageNotFound_png.png")
 	image = image.resize((180, 180))
 	image = ImageTk.PhotoImage(image)
@@ -393,8 +452,6 @@ class Enemy(Encounter):
 
 	def fight(self):
 		"""Set up fight screen"""
-
-		global screen
 
 		cbt_scr.create_rectangle(W + 90, 10, W - 10, 30) # enemy health bar
 
@@ -448,7 +505,8 @@ class Enemy(Encounter):
 		out.config(text=hold[:-1])
 
 		# remove enemy icon on map
-		disp.delete("enemy" + str(p.loc[0]) + "," + str(p.loc[1]))
+		dungeon.current_floor.disp.delete(
+			"enemy" + str(p.loc[0]) + "," + str(p.loc[1]))
 		cur_room().info = "This is an empty room."
 
 		for i in self.loot:  # take loot
@@ -525,7 +583,8 @@ class EquipableItem(CollectableItem):
 	"""An item that can be equiped and unequiped"""
 
 	def __init__(self, *args, **kwargs):
-		super().__init__(*args, **kwargs) # allows other agruments to be passed
+		# *args and **kwargs allow other agruments to be passed
+		super().__init__(*args, **kwargs)
 		self.name = "undefined_equipable_item"
 		self.space = (None, float("inf"))
 		self.equiped = False  # would prefer for this to be a temp variable
@@ -645,7 +704,8 @@ class Sword(BuyableItem, EquipableItem):  # sword in shop
 			update_stats()
 
 
-def armor_factory(tier): # needed to create different tiers of armor dynamically
+# needed to create different tiers of armor dynamically
+def armor_factory(tier):
 	"""Create armor class with the desired tier"""
 
 	class Armor(BuyableItem, EquipableItem):
@@ -655,7 +715,8 @@ def armor_factory(tier): # needed to create different tiers of armor dynamically
 		# here so that a higher tier class can be generated from this one
 		factory = staticmethod(armor_factory)
 
-		# what if kwargs contains "tier=1.2"? I don't know what to do about that
+		# what if kwargs contains "tier=1.2"? I don't know what to
+		# do about that
 		def __init__(self, *args, **kwargs):
 			super().__init__(*args, **kwargs)
 			self.tier = tier
@@ -688,34 +749,16 @@ def armor_factory(tier): # needed to create different tiers of armor dynamically
 def movement_factory(direction): # necessary for tkinter key binding reasons
 	"""Factory for moveing the character functions"""
 
-	def move_func():
+	def move_func(event=None):
 		"""Move in a direction"""
-
-		p.move(direction)
+		
+		if screen == "stairs":
+			navigation_mode()
+		
+		if screen != "fight" and master.focus_get() is not entry:
+			p.move(direction)
 
 	return move_func
-
-
-def up_key(event):  # key binding functions
-	"""The up arrow is pressed"""
-
-	if screen != "fight" and master.focus_get() is not entry:
-		p.move("north")
-def down_key(event):
-	"""The down arrow is pressed"""
-
-	if screen != "fight" and master.focus_get() is not entry:
-		p.move("south")
-def right_key(event):
-	"""The right key is pressed"""
-
-	if screen != "fight" and master.focus_get() is not entry:
-		p.move("east")
-def left_key(event):
-	"""The left arrow is pressed"""
-
-	if screen != "fight" and master.focus_get() is not entry:
-		p.move("west")
 
 
 def mouse_click(event):
@@ -823,7 +866,8 @@ def enter_key(event):
 	done = True  # development variable. Will be removed
 	if data["command"] == "unequip":
 
-		# look for the item in equipment if you are trying to unequip something
+		# look for the item in equipment if you are trying to unequip
+		# something
 		inv_names = search_inventory(item, "equipment")
 		try:
 			p.inven[inv_name].unequip()
@@ -838,7 +882,8 @@ def enter_key(event):
 
 				# if you are already wearing equipment in that slot
 				if (occupied_equipment(p.equipment).count(
-					p.inven[inv_name].space[0]) >= p.inven[inv_name].space[1]):
+					p.inven[inv_name].space[0])
+					>= p.inven[inv_name].space[1]):
 
 					# if you are only wearing 1 thing in that slot
 					if p.inven[inv_name].space[1] == 1:
@@ -982,15 +1027,18 @@ max_use_body_part = {
 
 def check_all_rooms():
 	"""Check if all rooms have been visited"""
-
-	t = [room for li in dun for room in map(lambda a: a.visited, li)]
-	return all(t)
+	
+	for row in dungeon.current_floor:
+		for room in row:
+			if not room.visited:
+				return False
+	return True
 
 
 def cur_room():
 	"""Return the Room object that they player is currently in"""
 
-	room = dun[p.loc[0]][p.loc[1]]
+	room = dungeon.current_floor[p.loc[0]][p.loc[1]]
 	return(room)
 
 
@@ -1014,8 +1062,9 @@ def flee():
 	chance = rand.randint(0, 100)
 	if chance > 50:
 		navigation_mode()
-		disp.create_oval(  # create an icon for an enemy the player knows
-			SMW * p.loc[0] + SMW / 4, SMH * p.loc[1] + SMH / 4,    # about
+		# create an icon for an enemy the player knows about
+		dungeon.current_floor.disp.create_oval(
+			SMW * p.loc[0] + SMW / 4, SMH * p.loc[1] + SMH / 4,
 			SMW * p.loc[0] + SMW * 3/4, SMH * p.loc[1] + SMH * 3/4,
 			fill="red", tags="enemy" + str(p.loc[0]) + "," + str(p.loc[1]))
 		out.config(text="You got away.")
@@ -1029,24 +1078,22 @@ def leave():
 		flee()
 	else:
 		navigation_mode()
-		disp.create_image(
+		dungeon.current_floor.disp.create_image(
 			int(SMW * (p.loc[0] + .5)), int(SMH * (p.loc[1] + .5)),
 			image=cur_room().en.icon, anchor="center")
-
-
-def interact():
-	cur_room().en.interact()
 
 
 def navigation_mode():
 	"""Switch to navigation screen"""
 
 	global screen
+	
 	cbt_scr.delete("all")
 	for i in fight_widgets + non_hostile_widgets:
 		i.grid_remove()
 	for i in navigation_widgets:
 		i.grid()
+	navigation_widgets[0].grid(row=0, column=3, rowspan=5)
 	out.grid(row=5, column=0, columnspan=4)
 	b[4].grid(row=1, column=0)
 	entry.grid(row=6, column=1, columnspan=2)
@@ -1061,14 +1108,18 @@ def room_info(event):
 	"""Give information about rooms by clicking on them"""
 
 	x, y = event.x, event.y
-	subjects = disp.find_overlapping(x - 1, y - 1, x + 1, y + 1)
+	subjects = dungeon.current_floor.disp.find_overlapping(
+		x - 1,
+		y - 1,
+		x + 1,
+		y + 1)
 	sub = []
 	for i in subjects:
-		if disp.type(i) == "rectangle":
+		if dungeon.current_floor.disp.type(i) == "rectangle":
 			sub.append(i)
 	if len(sub) == 1:
-		tag = disp.gettags(sub[0])[0].split(",")
-		clicked_room = dun[int(tag[0])][int(tag[1])]
+		tag = dungeon.current_floor.disp.gettags(sub[0])[0].split(",")
+		clicked_room = dungeon.current_floor[int(tag[0])][int(tag[1])]
 
 		if int(tag[0]) == p.loc[0] and int(tag[1]) == p.loc[1]:
 			out.config(text="This is your current location.")
@@ -1096,10 +1147,10 @@ def update_stats():
 def restart():
 	"""Reset all the values of the game and prepare to start over"""
 
-	global dun, p, monsters_killed
+	global dungeon, p, monsters_killed
 
-	del dun
-	dun = Floor(1)
+	del dungeon
+	dungeon = Dungeon()
 
 	del p
 	p = Player()
@@ -1111,12 +1162,12 @@ def restart():
 	game_over.grid_remove()
 	screen = "navigation"
 	navigation_mode()
-	disp.delete("all")
-	create_display()
+	dungeon.current_floor.disp.delete("all")
+	create_display(dungeon.current_floor.disp)
 	out.config(text="Welcome to The Dungeon!")
 
 
-def create_display():
+def create_display(disp):
 	"""Create the map for the player to see"""
 
 	for i in range(DUN_W):  # display creation
@@ -1134,18 +1185,19 @@ def create_display():
 def create_display_canvas():
 	return tk.Canvas(master, width=W, height=H)
 
+
 if __name__ == "__main__":
-	print("\n" * 5)
+	print("\n" * 3)
 
 	master.title(string="The Dungeon")  # window name
 	empty_menu = tk.Menu(master)
 
 	p = Player()  # player creation
 
-	dungeon = [Floor(1)]
-	dun = dungeon[0]
+	dungeon = Dungeon()
+	dungeon.current_floor
 
-	p.floor = dun
+	p.floor = dungeon.current_floor
 
 	# movement + inventory button creation
 	b = [tk.Button(master) for i in range(5)]
@@ -1166,13 +1218,9 @@ if __name__ == "__main__":
 	b[4].grid(row=1, column=0)
 
 
-	floor_displays = [create_display_canvas()]  # canvas creation
+	dungeon.current_floor.disp.grid(row=0, column=3, rowspan=5)
 
-	disp = floor_displays[0]   # designation of current canvas for floor
-	disp.grid(row=0, column=3, rowspan=5)
-
-
-	create_display()
+	create_display(dungeon.current_floor.disp)
 
 	# health bar creation
 	healthbar = tk.Canvas(master, width=100 + 10, height=30)
@@ -1227,27 +1275,27 @@ if __name__ == "__main__":
 	run_b = tk.Button(master, text="Flee", command=flee)
 
 	inter_btn = tk.Button(
-		master, text="", command=interact)
+		master, text="", command=lambda event: cur_room().en.interact())
 	leave_btn = tk.Button(
 		master, text="", command=leave)
 
 	# collections of widgets
 	fight_widgets = [cbt_scr, att_b, run_b]
-	# need to make disp in this list always be the disp in the
-	# global namespace
-	navigation_widgets = b[:-1] + [disp, healthbar, out]
+	# Need to make disp in this list always be the disp of the current floor
+	# to do this disp must be in a known position, namely first
+	navigation_widgets = [dungeon.current_floor.disp, healthbar, out] + b[:-1]
 	other_widgets = [b[4], entry, stats, restart_button, game_over]
 	non_hostile_widgets = [inter_btn, leave_btn]
 
 
-	master.bind("<Up>", up_key)  # key bindings
-	master.bind("<Down>", down_key)
-	master.bind("<Right>", right_key)
-	master.bind("<Left>", left_key)
+	master.bind("<Up>", movement_factory("north"))  # key bindings
+	master.bind("<Down>", movement_factory("south"))
+	master.bind("<Right>", movement_factory("east"))
+	master.bind("<Left>", movement_factory("west"))
 
 	master.bind("<Return>", enter_key)
 	master.bind("<Button 1>", mouse_click)
-	disp.bind("<Button 1>", room_info)
+	dungeon.current_floor.disp.bind("<Button 1>", room_info)
 
 	master.mainloop()
 
