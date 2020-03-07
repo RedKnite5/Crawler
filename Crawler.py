@@ -25,8 +25,8 @@ from PIL import ImageTk
 	# 5)
 
 # should these be placed in a config file?
-DUN_W = 10   # number of rooms wide         # constant intialization
-DUN_H = 3
+DUN_W = 4   # number of rooms wide         # constant intialization
+DUN_H = 4
 W = 300        # width of map screen in pixels
 H = 300
 SMW = W / DUN_W  # width of a room in pixels
@@ -574,7 +574,7 @@ class UsableItem(CollectableItem):
 	def use(self):
 		"""Use the item for what ever purpose it has"""
 
-		out.config(text="Used " + self.name.title())
+		gui.out.config(text="Used " + self.name.title())
 
 		# should later change how consumable things work
 		# make not everything consumable? or add durability
@@ -596,11 +596,11 @@ class EquipableItem(CollectableItem):
 
 		if (occupied_equipment(p.equipment).count(self.space[0]) >=
 			self.space[1]):
-			out.config(
+			gui.out.config(
 				text=f"You can not equip more than {self.space[1]} of this")
 		else:
 			self.equiped = True
-			out.config(text="You equip the " + self.name)
+			gui.out.config(text="You equip the " + self.name)
 			# should rework how inventory interacts with equipment
 			p.inven[self.name] -= 1
 
@@ -619,7 +619,7 @@ class EquipableItem(CollectableItem):
 			p.equipment[self.name][1] -= 1
 			if p.equipment[self.name][1] <= 0:
 				p.equipment.pop(self.name)
-			out.config(text="You unequip the " + self.name)
+			gui.out.config(text="You unequip the " + self.name)
 
 
 class BuyableItem(CollectableItem):
@@ -656,7 +656,7 @@ class HealthPot(UsableItem):
 		if p.health > p.max_health:
 			p.health = p.max_health
 
-		update_healthbar()
+		gui.update_healthbar()
 
 
 class SlimeHeart(UsableItem):
@@ -673,7 +673,7 @@ class SlimeHeart(UsableItem):
 		p.max_health += SLIME_HEART_VAL
 		p.health += SLIME_HEART_VAL
 
-		update_healthbar()
+		gui.update_healthbar()
 
 
 class Sword(BuyableItem, EquipableItem):  # sword in shop
@@ -694,7 +694,7 @@ class Sword(BuyableItem, EquipableItem):  # sword in shop
 		if self.equiped:
 			p.damage += 5
 			self.equiped = False  # reset this variable
-			update_stats()
+			gui.update_stats()
 
 	def unequip(self):
 		"""Remove the sword"""
@@ -703,7 +703,7 @@ class Sword(BuyableItem, EquipableItem):  # sword in shop
 		if self.unequiped:
 			p.damage -= 5
 			self.unequiped = False  # reset this variable
-			update_stats()
+			gui.update_stats()
 
 
 class GUI(object):
@@ -1068,7 +1068,7 @@ def armor_factory(tier):
 			if self.equiped:
 				p.defence += 5 + 5 * self.tier
 				self.equiped = False  # reset this variable
-				update_stats()
+				gui.update_stats()
 
 		def unequip(self):
 			"""Take off the armor"""
@@ -1077,7 +1077,7 @@ def armor_factory(tier):
 			if self.unequiped:
 				p.defence -= 5 + 5 * self.tier
 				self.unequiped = False  # reset this variable
-				update_stats()
+				gui.update_stats()
 
 	return Armor  # return the class from the factory
 
