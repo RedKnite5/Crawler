@@ -25,7 +25,7 @@ from PIL import ImageTk
 	# 5)
 
 # should these be placed in a config file?
-DUN_W = 3   # number of rooms wide         # constant intialization
+DUN_W = 10   # number of rooms wide         # constant intialization
 DUN_H = 3
 W = 300        # width of map screen in pixels
 H = 300
@@ -46,14 +46,10 @@ STARTING_ROOM_TYPE = 0
 DOWN_STAIRS_TYPE = -1
 UP_STAIRS_TYPE = -2
 
-ENEMIES = False
+ENEMIES = True
 
 screen = "navigation"
 monsters_killed = 0
-
-master = tk.Tk()
-
-end_font = font.Font(size=40)
 
 
 class Dungeon(object):
@@ -107,7 +103,7 @@ class Floor(object):
 			center_room.init2(dest=upstairs)
 		
 		
-		self.disp = create_display_canvas()
+		self.disp = tk.Canvas(gui.master, width=W, height=H)
 		create_display(self.disp)
 
 
@@ -183,7 +179,7 @@ class Room(object):
 			self.type = DOWN_STAIRS_TYPE
 			self.init2()
 
-		out.config(text=self.info)
+		gui.out.config(text=self.info)
 		if getattr(self.en, "alive", False):
 			self.en.meet()
 		elif not isinstance(self.en, Enemy): # this isn't good practice
@@ -301,14 +297,23 @@ class Player(object):
 		hold = ""
 		for key, val in self.inven.items():
 			hold += "\n" + str(key).title() + ": " + str(val.amount)
-		out.config(text=hold[1:])
+		gui.out.config(text=hold[1:])
 
 
 class Encounter(object):
-
-	image = Image.open("ImageNotFound_png.png")
-	image = image.resize((180, 180))
-	image = ImageTk.PhotoImage(image)
+	
+	def __init__(self, filename="ImageNotFound_png.png"):
+		
+		
+			# image is a class variable to reduce variable initialization
+			# (the repeated defining of self.image), copying of large variables,
+			# reduce amount of global variables, and keep related data together.
+			# It is being defined here so that PhotoImage does not get called
+			# before tk has been inititialized.
+		if not hasattr(type(self), "image"):
+			image = Image.open(filename)
+			image = image.resize((180, 180))
+			type(self).image = ImageTk.PhotoImage(image)
 
 	@classmethod  # Class method to give access to class variables for the
 	# class. This method belongs to not just this base class
@@ -317,10 +322,10 @@ class Encounter(object):
 
 		if cls.image:
 			if place == "NW":
-				cbt_scr.create_image(   # encounter icon
+				gui.cbt_scr.create_image(   # encounter icon
 					210, 40, image=cls.image, anchor="nw")
 			elif place == "center":
-				cbt_scr.create_image(   # encounter icon
+				gui.cbt_scr.create_image(   # encounter icon
 					210, 130, image=cls.image, anchor="center")
 
 	def meet(self, disp="NW"):
@@ -334,15 +339,18 @@ class Encounter(object):
 				image=cur_room().en.icon, anchor="center")
 
 		screen = "encounter"
-		cbt_scr.delete("all")
+		gui.cbt_scr.delete("all")
 		self.show_ico(place=disp)
 
 	def leave(self):
-		navigation_mode()
+		gui.navigation_mode()
 
 
 class Empty(Encounter):
 	image = None
+	
+	def __init__(self):
+		pass
 
 	def meet(self):
 		super().meet()
@@ -351,15 +359,16 @@ class Empty(Encounter):
 
 class Stairs(Encounter):
 
-	image = Image.open("dungeon_stairs.png")
-	image = image.resize((180, 240))
-	image = ImageTk.PhotoImage(image)
-
-	icon = Image.open("stairs_icon.png")  # icon of stairs
-	icon = ImageOps.mirror(icon.resize((int(SMW / 2), int(SMH / 2))))
-	icon = ImageTk.PhotoImage(icon)
-
 	def __init__(self, location, dist=+1, to=None):
+	
+		if not hasattr(type(self), "image"):
+			image = Image.open("dungeon_stairs.png")
+			image = image.resize((180, 240))
+			type(self).image = ImageTk.PhotoImage(image)
+
+			icon = Image.open("stairs_icon.png")  # icon of stairs
+			icon = ImageOps.mirror(icon.resize((int(SMW / 2), int(SMH / 2))))
+			type(self).icon = ImageTk.PhotoImage(icon)
 
 		self.location = location
 		self.dist = dist
@@ -381,9 +390,9 @@ class Stairs(Encounter):
 		p.floor = dungeon.current_floor
 		p.loc = [self.to["x"], self.to["y"]]
 		
-		navigation_widgets[0] = dungeon.current_floor.disp
+		gui.navigation_widgets[0] = dungeon.current_floor.disp
 		
-		navigation_mode()
+		gui.navigation_mode()
 		
 		dungeon.current_floor.disp.coords("player", 
 			(SMW * p.loc[0],
@@ -398,32 +407,28 @@ class Stairs(Encounter):
 		global screen
 		screen = "stairs"
 
-		clear_screen()
-		cbt_scr.grid(row=0, column=0, columnspan=4)
+		gui.clear_screen()
+		gui.cbt_scr.grid(row=0, column=0, columnspan=4)
 		
-		inter_btn.grid(row=1, column=1)
-		inter_btn.config(text="Decend" if self.dist > 0 else "Ascend")
-		inter_btn.config(command=self.interact)
+		gui.inter_btn.grid(row=1, column=1)
+		gui.inter_btn.config(text="Decend" if self.dist > 0 else "Ascend")
+		gui.inter_btn.config(command=self.interact)
 		
-		leave_btn.grid(row=1, column=2)
+		gui.leave_btn.grid(row=1, column=2)
 		# Having a button labeled "Leave" also sounds like going down
 		# the stairs
-		leave_btn.config(text="Leave")
-		leave_btn.config(command=self.leave)
+		gui.leave_btn.config(text="Leave")
+		gui.leave_btn.config(command=self.leave)
 
 
 class Enemy(Encounter):
 	"""General enemy class. Includes set up for fights, attacking, being
 	attacked, and returning loot"""
 
-	# image is a class variable to reduce variable initialization
-	# (the repeated defining of self.image), copying of large variables,
-	# reduce amount of global variables, and keep related data together
-	image = Image.open("ImageNotFound_png.png")
-	image = image.resize((180, 180))
-	image = ImageTk.PhotoImage(image)
-
-	def __init__(self): #   create enemy
+	def __init__(self, filename="ImageNotFound_png.png"): #   create enemy
+	
+		super().__init__(filename)
+		
 		self.alive = True
 		self.max_health = 1
 		self.health = 1
@@ -439,32 +444,32 @@ class Enemy(Encounter):
 
 		global screen
 		screen = "fight"
-		clear_screen()
-		cbt_scr.grid(row=0, column=0, columnspan=3)
-		att_b.grid(row=1, column=0)
-		b[4].grid(row=1, column=1)
-		stats.grid(row=1, column=3)
-		run_b.grid(row=1, column=2)
-		out.grid(row=2, column=0, columnspan=3)
-		entry.grid(row=3, column=0, columnspan=3)
+		gui.clear_screen()
+		gui.cbt_scr.grid(row=0, column=0, columnspan=3)
+		gui.att_b.grid(row=1, column=0)
+		gui.b[4].grid(row=1, column=1)
+		gui.stats.grid(row=1, column=3)
+		gui.run_b.grid(row=1, column=2)
+		gui.out.grid(row=2, column=0, columnspan=3)
+		gui.entry.grid(row=3, column=0, columnspan=3)
 
 		self.fight()
 
 	def fight(self):
 		"""Set up fight screen"""
 
-		cbt_scr.create_rectangle(W + 90, 10, W - 10, 30) # enemy health bar
+		gui.cbt_scr.create_rectangle(W + 90, 10, W - 10, 30) # enemy health bar
 
-		cbt_scr.create_rectangle(   # enemy health
+		gui.cbt_scr.create_rectangle(   # enemy health
 			W + 90, 10, W + 90 - (100 * self.health / self.max_health), 30,
 			fill="red", tags="en_bar")
 
-		cbt_scr.create_rectangle(
+		gui.cbt_scr.create_rectangle(
 			10, H - 30, 110, H - 10) # player healthbar
-		cbt_scr.create_rectangle(
+		gui.cbt_scr.create_rectangle(
 			10, H - 30, 10 + (100 * p.health / p.max_health), H - 10,
 			fill="green", tags="fight_healthbar")
-		cbt_scr.create_text(
+		gui.cbt_scr.create_text(
 			60, H - 20,
 			text=f"{p.health}/{p.max_health}",
 			tags="fight_healthbar_text")
@@ -477,8 +482,8 @@ class Enemy(Encounter):
 		p.health -= damage_delt
 		if p.health <= 0:
 			lose()
-		update_healthbar()
-		out.config(text="The enemy did " + str(damage_delt) + " damage!")
+		gui.update_healthbar()
+		gui.out.config(text="The enemy did " + str(damage_delt) + " damage!")
 
 	def be_attacked(self):
 		"""The player attacks. The enemy is damaged"""
@@ -486,7 +491,7 @@ class Enemy(Encounter):
 		self.health -= p.damage
 		if self.health <= 0:
 			self.die()
-		cbt_scr.coords(
+		gui.cbt_scr.coords(
 			"en_bar",
 			W + 90, 10, W + 90 - (100 * self.health / self.max_health), 30)
 		if self.alive:
@@ -502,7 +507,7 @@ class Enemy(Encounter):
 		hold = "You got: \n"
 		for key, val in self.loot.items():  # display loot
 			hold += str(key).title() + ": " + str(val.amount) + "\n"
-		out.config(text=hold[:-1])
+		gui.out.config(text=hold[:-1])
 
 		# remove enemy icon on map
 		dungeon.current_floor.disp.delete(
@@ -521,12 +526,13 @@ class Enemy(Encounter):
 class Goblin(Enemy):
 	"""Common weak enemy"""
 
-	image = Image.open("TypicalGoblin_png.png")  # enemy icon stuff
-	image = ImageOps.mirror(image.resize((180, 180)))
-	image = ImageTk.PhotoImage(image)
-
 	def __init__(self, *args, **kwargs):
 		"""Set stats and loot"""
+		
+		if not hasattr(type(self), "image"):
+			image = Image.open("TypicalGoblin_png.png")  # enemy icon stuff
+			image = ImageOps.mirror(image.resize((180, 180)))
+			type(self).image = ImageTk.PhotoImage(image)
 
 		super().__init__(*args, **kwargs)
 		self.max_health = rand.randint(30, 40) + monsters_killed
@@ -543,14 +549,10 @@ class Goblin(Enemy):
 class Slime(Enemy):
 	"""Higher level enemy"""
 
-	image = Image.open("SlimeMonster_png.png")
-	image = image.resize((180, 180))
-	image = ImageTk.PhotoImage(image)
-
 	def __init__(self, *args, **kwargs):
 		"""Set stats and loot"""
 
-		super().__init__(*args, **kwargs)
+		super().__init__(*args, filename="SlimeMonster_png.png", **kwargs)
 		self.max_health = rand.randint(50, 70) + (3 * monsters_killed) // 2
 		self.health = self.max_health
 		self.damage = rand.randint(10, 20) + monsters_killed // 2
@@ -704,6 +706,340 @@ class Sword(BuyableItem, EquipableItem):  # sword in shop
 			update_stats()
 
 
+class GUI(object):
+	def __init__(self):
+		self.master = tk.Tk()
+		
+		self.master.title(string="The Dungeon")  # window name
+		self.empty_menu = tk.Menu(self.master)
+		
+		# movement + inventory button creation
+		self.b = [tk.Button(self.master) for i in range(5)]
+
+		# movement button configuation
+		self.b[0].configure(text="North", command=movement_factory("north"))
+		self.b[3].configure(text="South", command=movement_factory("south"))
+		self.b[1].configure(text="West", command=movement_factory("west"))
+		self.b[2].configure(text="East", command=movement_factory("east"))
+
+		self.b[0].grid(row=2, column=1) # button placement
+		self.b[1].grid(row=3, column=0)
+		self.b[2].grid(row=3, column=2)
+		self.b[3].grid(row=4, column=1)
+		self.b[4].grid(row=1, column=0)
+
+		# health bar creation
+		self.healthbar = tk.Canvas(self.master, width=100 + 10, height=30)
+		self.healthbar.grid(row=0, column=0, columnspan=3)
+
+		self.healthbar.create_rectangle(10, 10, 10 + 100, 30)  # health bar drawing
+
+		self.stats = tk.Message(self.master, text="")
+		self.stats.grid(row=1, column=1, columnspan=2)
+
+		# output text creation
+		self.out = tk.Message(
+			self.master,
+			text="Welcome to The Dungeon. Come once, stay forever!",
+			width=W + 100)
+		self.out.grid(row=5, column=0, columnspan=4)
+
+		self.entry = tk.Entry(self.master)
+		self.entry.grid(row=6, column=1, columnspan=2)
+
+		self.shop = tk.Menu(self.master) # top level shop menu
+		self.stock = tk.Menu(self.shop, tearoff=0) # drop down menu
+		for i in buyable_items:
+			self.stock.add_command(   # actual things you can buy
+				label=i.title() + ": " + str(buyable_items[i]().cost),
+				command=buy_item_fact(i))
+
+		self.shop.add_cascade(menu=self.stock, label="Shop")
+		self.master.config(menu=self.shop) # add menu to screen
+
+		self.restart_button = tk.Button(
+			self.master,
+			text="Restart",
+			command=restart,
+			width=10
+		)
+
+		self.game_over = tk.Canvas(self.master, width=W + 100, height=H)
+		self.game_over.create_rectangle(0, 0, W + 100, H + 50, fill="black")
+		self.game_over.create_text(
+			W/2 + 50,
+			H/2,
+			text="GAME OVER",
+			fill="green",
+			font=font.Font(size=40)
+		)
+		self.game_over.create_window(W, H * 3/4, window=self.restart_button)
+		self.restart_button.lift()
+
+		#  fight screen
+		self.cbt_scr = tk.Canvas(self.master, width=W + 100, height=H)
+
+		self.att_b = tk.Button(self.master, text="Attack", command=attack)
+		self.run_b = tk.Button(self.master, text="Flee", command=flee)
+
+		self.inter_btn = tk.Button(
+			self.master,
+			text="",
+			command=lambda event: cur_room().en.interact()
+		)
+		self.leave_btn = tk.Button(
+			self.master, text="", command=self.leave
+		)
+
+		# collections of widgets
+		self.fight_widgets = [self.cbt_scr, self.att_b, self.run_b]
+		
+		self.other_widgets = [
+			self.b[4],
+			self.entry,
+			self.stats,
+			self.restart_button,
+			self.game_over
+		]
+		self.non_hostile_widgets = [self.inter_btn, self.leave_btn]
+
+
+		self.master.bind("<Up>", movement_factory("north"))  # key bindings
+		self.master.bind("<Down>", movement_factory("south"))
+		self.master.bind("<Right>", movement_factory("east"))
+		self.master.bind("<Left>", movement_factory("west"))
+
+		self.master.bind("<Return>", self.enter_key)
+		self.master.bind("<Button 1>", mouse_click)
+
+	
+	def player_config(self, p):
+		
+		self.p = p
+		
+		# inventory button configuration
+		self.b[4].configure(text="Inventory", command=self.p.disp_in)
+		
+		self.healthbar.create_rectangle(
+			10,
+			10,
+			10 + (100 * p.health / p.max_health),
+			30,
+			fill="green",
+			tags="navigation_healthbar"
+		)
+		self.healthbar.create_text(
+			60, 20,
+			text=f"{p.health}/{p.max_health}",
+			tags="navigation_healthbar_text"
+		)
+		
+		self.update_stats()
+	
+	def dungeon_config(self, dungeon):
+		self.dungeon = dungeon
+		
+		self.dungeon.current_floor.disp.grid(row=0, column=3, rowspan=5)
+
+		create_display(self.dungeon.current_floor.disp)
+		
+		self.dungeon.current_floor.disp.bind("<Button 1>", room_info)
+	
+	def __getattr__(self, attr):
+	
+		# Need to make disp in this list always be the disp of the current floor
+		# to do this disp must be in a known position, namely first
+		if attr == "navigation_widgets":
+			return ([
+				self.dungeon.current_floor.disp,
+				self.healthbar,
+				self.out]
+				+ self.b[:-1]
+			)
+	
+	def update_stats(self):
+		"""Update the stats for the player"""
+
+		self.stats.config(
+			text=f"Damage: {self.p.damage}\nDefence: {self.p.defence}"
+		)
+
+
+	def enter_key(self, event):
+		"""This function triggers when you press the enter key in the
+		entry box. It is to use or equip something in your inventory"""
+
+		data = input_analysis(self.entry.get())
+		item = data["subject"] # name of item
+		# name of item in the player's inventory
+		inv_names = search_inventory(item)
+
+		# if you dont have any of the possible items and are trying to use or
+		# equip an item
+		if (not any(self.p.inven.get(name, 0) for name in inv_names) and
+			data["command"] in ("equip", "use")):
+			self.out.config(text="You do not have any of that")
+			return
+
+		elif not any(self.p.inven.get(name, 0) for name in inv_names):
+
+			if len(inv_names) == 1:
+				inv_name = inv_names[0]
+
+			elif not len(inv_names): # len(inv_names) == 0
+				self.out.config(text="That item is not equiped")
+				return
+
+			else: # Mys line 1
+				self.out.config(text="More than one item fits that description")
+				return
+		elif len(inv_names) > 0:
+
+			# If more than one value with at least one in the inventory, return
+			if sum(1 for name in inv_names if self.p.inven.get(name, 0)) > 1:
+				self.out.config(text="More than one item fits that description")
+				return
+			else:
+
+				# set inv_name to the one that is in inventory.
+				inv_name = sorted(inv_names, key=lambda n: -self.p.inven.get(n, 0))[0]
+
+		else: # empty list default
+			inv_name = item
+
+		done = True  # development variable. Will be removed
+		if data["command"] == "unequip":
+
+			# look for the item in equipment if you are trying to unequip
+			# something
+			inv_names = search_inventory(item, "equipment")
+			try:
+				self.p.inven[inv_name].unequip()
+			except:
+				self.out.config(text=f"{inv_name.title()} is not equiped")
+
+		elif data["command"] == "equip":
+
+			# if you can equip the item
+			try:
+				if self.p.inven[inv_name].amount > 0:
+
+					# if you are already wearing equipment in that slot
+					if (occupied_equipment(p.equipment).count(
+						self.p.inven[inv_name].space[0])
+						>= self.p.inven[inv_name].space[1]):
+
+						# if you are only wearing 1 thing in that slot
+						if self.p.inven[inv_name].space[1] == 1:
+
+							for key, val in self.p.equipment.items():
+
+								if val[0] == self.p.inven[inv_name].space :
+									val[2].unequip()
+									self.p.inven[inv_name].equip()
+									return
+
+					self.p.inven[inv_name].equip()
+					if screen == "fight":  # equiping items takes a turn
+						cur_room().en.attack()
+				else:
+					self.out.config(text="You do not have any of that")
+			except Exception as e:
+				self.out.config(text="That item is not equipable")
+
+		elif data["command"] == "use":
+			try:   # if you can use the item
+				if self.p.inven[inv_name].amount > 0:
+					self.p.inven[inv_name].use()
+					if screen == "fight":
+						# using items during a fight uses a turn
+						cur_room().en.attack()
+				else:
+					self.out.config(text="You do not have any of that")
+			except:
+				self.out.config(text="That item is not usable")
+
+		else:
+			done = False
+
+		if done:
+			return
+
+		print("should finish")
+
+		if inv_name in self.p.inven:
+			if self.p.inven[inv_name].amount > 0:
+				try:   # if you can use the item
+					self.p.inven[inv_name].use()
+					if screen == "fight":
+						cur_room().en.attack()
+				except:
+					try:  # if you can equip the item
+						self.p.inven[inv_name].equip()
+						if screen == "fight":  # using items takes a turn
+							cur_room().en.attack()
+					except:
+						self.out.config(text="That item is not usable")
+			else:
+				self.out.config(text="You do not have any of that")
+		else:
+			self.out.config(text="You do not have any of that")
+
+	def update_healthbar(self):
+		"""Update the appearance of the healthbar in both the fighting screen
+		and the navigation screen"""
+
+		self.cbt_scr.coords(
+			"fight_healthbar",
+			10, H - 30, 10 + (100 * self.p.health / self.p.max_health), H - 10)
+		self.cbt_scr.itemconfig(
+			"fight_healthbar_text",
+			text=f"{self.p.health}/{self.p.max_health}")
+
+		self.healthbar.coords(
+			"navigation_healthbar",
+			10, 10, 10 + (100 * self.p.health / self.p.max_health), 30)
+		self.healthbar.itemconfig(
+			"navigation_healthbar_text",
+			text=f"{self.p.health}/{self.p.max_health}")			
+		
+
+	def navigation_mode(self):
+		"""Switch to navigation screen"""
+
+		global screen
+		
+		self.cbt_scr.delete("all")
+		for i in self.fight_widgets + self.non_hostile_widgets:
+			i.grid_remove()
+		for i in self.navigation_widgets:
+			i.grid()
+		self.navigation_widgets[0].grid(row=0, column=3, rowspan=5)
+		self.out.grid(row=5, column=0, columnspan=4)
+		self.b[4].grid(row=1, column=0)
+		self.entry.grid(row=6, column=1, columnspan=2)
+		self.stats.grid(row=1, column=1, columnspan=2)
+		self.master.config(menu=self.shop)
+		screen = "navigation"
+		self.healthbar.coords("navigation_healthbar",
+			10, 10, 10 + (100 * self.p.health / self.p.max_health), 30)
+			
+	def leave(self):
+		if screen == "fight":
+			flee()
+		else:
+			self.navigation_mode()
+			self.dungeon.current_floor.disp.create_image(
+				int(SMW * (p.loc[0] + .5)), int(SMH * (p.loc[1] + .5)),
+				image=cur_room().en.icon, anchor="center")
+
+	def clear_screen(self):
+		"""Remove all widgets"""
+
+		for i in self.navigation_widgets + self.fight_widgets + self.other_widgets:
+			i.grid_remove()
+		self.master.config(menu=self.empty_menu)
+
 # needed to create different tiers of armor dynamically
 def armor_factory(tier):
 	"""Create armor class with the desired tier"""
@@ -753,9 +1089,9 @@ def movement_factory(direction): # necessary for tkinter key binding reasons
 		"""Move in a direction"""
 		
 		if screen == "stairs":
-			navigation_mode()
+			gui.navigation_mode()
 		
-		if screen != "fight" and master.focus_get() is not entry:
+		if screen != "fight" and gui.master.focus_get() is not gui.entry:
 			p.move(direction)
 
 	return move_func
@@ -821,127 +1157,6 @@ def search_inventory(item, searching="inventory"):
 	return items
 
 
-def enter_key(event):
-	"""This function triggers when you press the enter key in the
-	entry box. It is to use or equip something in your inventory"""
-
-	data = input_analysis(entry.get())
-	item = data["subject"] # name of item
-	# name of item in the player's inventory
-	inv_names = search_inventory(item)
-
-	# if you dont have any of the possible items and are trying to use or
-	# equip an item
-	if (not any(p.inven.get(name, 0) for name in inv_names) and
-		data["command"] in ("equip", "use")):
-		out.config(text="You do not have any of that")
-		return
-
-	elif not any(p.inven.get(name, 0) for name in inv_names):
-
-		if len(inv_names) == 1:
-			inv_name = inv_names[0]
-
-		elif not len(inv_names): # len(inv_names) == 0
-			out.config(text="That item is not equiped")
-			return
-
-		else: # Mys line 1
-			out.config(text="More than one item fits that description")
-			return
-	elif len(inv_names) > 0:
-
-		# If more than one value with at least one in the inventory, return
-		if sum(1 for name in inv_names if p.inven.get(name, 0)) > 1:
-			out.config(text="More than one item fits that description")
-			return
-		else:
-
-			# set inv_name to the one that is in inventory.
-			inv_name = sorted(inv_names, key=lambda n: -p.inven.get(n, 0))[0]
-
-	else: # empty list default
-		inv_name = item
-
-	done = True  # development variable. Will be removed
-	if data["command"] == "unequip":
-
-		# look for the item in equipment if you are trying to unequip
-		# something
-		inv_names = search_inventory(item, "equipment")
-		try:
-			p.inven[inv_name].unequip()
-		except:
-			out.config(text=f"{inv_name.title()} is not equiped")
-
-	elif data["command"] == "equip":
-
-		# if you can equip the item
-		try:
-			if p.inven[inv_name].amount > 0:
-
-				# if you are already wearing equipment in that slot
-				if (occupied_equipment(p.equipment).count(
-					p.inven[inv_name].space[0])
-					>= p.inven[inv_name].space[1]):
-
-					# if you are only wearing 1 thing in that slot
-					if p.inven[inv_name].space[1] == 1:
-
-						for key, val in p.equipment.items():
-
-							if val[0] == p.inven[inv_name].space :
-								val[2].unequip()
-								p.inven[inv_name].equip()
-								return
-
-				p.inven[inv_name].equip()
-				if screen == "fight":  # equiping items takes a turn
-					cur_room().en.attack()
-			else:
-				out.config(text="You do not have any of that")
-		except Exception as e:
-			out.config(text="That item is not equipable")
-
-	elif data["command"] == "use":
-		try:   # if you can use the item
-			if p.inven[inv_name].amount > 0:
-				p.inven[inv_name].use()
-				if screen == "fight":
-					# using items during a fight uses a turn
-					cur_room().en.attack()
-			else:
-				out.config(text="You do not have any of that")
-		except:
-			out.config(text="That item is not usable")
-
-	else:
-		done = False
-
-	if done:
-		return
-
-	print("should finish")
-
-	if inv_name in p.inven:
-		if p.inven[inv_name].amount > 0:
-			try:   # if you can use the item
-				p.inven[inv_name].use()
-				if screen == "fight":
-					cur_room().en.attack()
-			except:
-				try:  # if you can equip the item
-					p.inven[inv_name].equip()
-					if screen == "fight":  # using items takes a turn
-						cur_room().en.attack()
-				except:
-					out.config(text="That item is not usable")
-		else:
-			out.config(text="You do not have any of that")
-	else:
-		out.config(text="You do not have any of that")
-
-
 def occupied_equipment(ment):
 	"""Figure out what equipment spaces are used"""
 
@@ -951,24 +1166,6 @@ def occupied_equipment(ment):
 		total += [i[0][0]] * i[1]
 	return total
 
-
-def update_healthbar():
-	"""Update the appearance of the healthbar in both the fighting screen
-	and the navigation screen"""
-
-	cbt_scr.coords(
-		"fight_healthbar",
-		10, H - 30, 10 + (100 * p.health / p.max_health), H - 10)
-	cbt_scr.itemconfig(
-		"fight_healthbar_text",
-		text=f"{p.health}/{p.max_health}")
-
-	healthbar.coords(
-		"navigation_healthbar",
-		10, 10, 10 + (100 * p.health / p.max_health), 30)
-	healthbar.itemconfig(
-		"navigation_healthbar_text",
-		text=f"{p.health}/{p.max_health}")
 
 # must be a factory because tkinter does not support passing arguments
 # to the functions it calls
@@ -989,9 +1186,9 @@ def buy_item_fact(item_name, amount=1, *args):
 					p.inven[item_name] = item
 				item.effect()    #  passive effect from having it
 				if item.plurale:
-					out.config(text="You bought " + item_name)
+					gui.out.config(text="You bought " + item_name)
 				else:
-					out.config(text="You bought a " + item_name)
+					gui.out.config(text="You bought a " + item_name)
 				p.inven["gold"] -= item.cost
 				if hasattr(item, "tier"):
 					# replace item in list of buyable items
@@ -999,14 +1196,14 @@ def buy_item_fact(item_name, amount=1, *args):
 					new_item_cls = item.factory(item.tier + 1)
 					buyable_items[new_item_cls.name] = new_item_cls
 
-					stock.delete(  # replace item in the menu
+					gui.stock.delete(  # replace item in the menu
 						item_name.title() + ": " + str(item.cost))
-					stock.add_command(
+					gui.stock.add_command(
 						label=(new_item_cls.name.title() + ": "
 						+ str(new_item_cls().cost)),
 						command=buy_item_fact(new_item_cls.name))
 			else:
-				out.config(text="You do not have enough Gold for that")
+				gui.out.config(text="You do not have enough Gold for that")
 	return buy_specific_item
 
 
@@ -1042,14 +1239,6 @@ def cur_room():
 	return(room)
 
 
-def clear_screen():
-	"""Remove all widgets"""
-
-	for i in navigation_widgets + fight_widgets + other_widgets:
-		i.grid_remove()
-	master.config(menu=empty_menu)
-
-
 def attack():
 	"""Attack the enemy"""
 
@@ -1061,47 +1250,17 @@ def flee():
 
 	chance = rand.randint(0, 100)
 	if chance > 50:
-		navigation_mode()
+		gui.navigation_mode()
 		# create an icon for an enemy the player knows about
 		dungeon.current_floor.disp.create_oval(
 			SMW * p.loc[0] + SMW / 4, SMH * p.loc[1] + SMH / 4,
 			SMW * p.loc[0] + SMW * 3/4, SMH * p.loc[1] + SMH * 3/4,
 			fill="red", tags="enemy" + str(p.loc[0]) + "," + str(p.loc[1]))
-		out.config(text="You got away.")
+		gui.out.config(text="You got away.")
 	else:
 		cur_room().en.attack()
-		out.config(text="You couldn't get away.")
+		gui.out.config(text="You couldn't get away.")
 
-
-def leave():
-	if screen == "fight":
-		flee()
-	else:
-		navigation_mode()
-		dungeon.current_floor.disp.create_image(
-			int(SMW * (p.loc[0] + .5)), int(SMH * (p.loc[1] + .5)),
-			image=cur_room().en.icon, anchor="center")
-
-
-def navigation_mode():
-	"""Switch to navigation screen"""
-
-	global screen
-	
-	cbt_scr.delete("all")
-	for i in fight_widgets + non_hostile_widgets:
-		i.grid_remove()
-	for i in navigation_widgets:
-		i.grid()
-	navigation_widgets[0].grid(row=0, column=3, rowspan=5)
-	out.grid(row=5, column=0, columnspan=4)
-	b[4].grid(row=1, column=0)
-	entry.grid(row=6, column=1, columnspan=2)
-	stats.grid(row=1, column=1, columnspan=2)
-	master.config(menu=shop)
-	screen = "navigation"
-	healthbar.coords("navigation_healthbar",
-		10, 10, 10 + (100 * p.health / p.max_health), 30)
 
 
 def room_info(event):
@@ -1135,13 +1294,6 @@ def lose():
 	screen = "game over"
 	clear_screen()
 	game_over.grid(row=0, column=0)
-
-
-def update_stats():
-	"""Update the stats for the player"""
-
-	global stats
-	stats.config(text=f"Damage: {p.damage}\nDefence: {p.defence}")
 
 
 def restart():
@@ -1182,120 +1334,24 @@ def create_display(disp):
 		fill = "green", tags = "player")
 
 
-def create_display_canvas():
-	return tk.Canvas(master, width=W, height=H)
-
 
 if __name__ == "__main__":
 	print("\n" * 3)
-
-	master.title(string="The Dungeon")  # window name
-	empty_menu = tk.Menu(master)
+	
+	gui = GUI()
 
 	p = Player()  # player creation
 
+	gui.player_config(p)
+
 	dungeon = Dungeon()
+	gui.dungeon_config(dungeon)
+	
 	dungeon.current_floor
 
 	p.floor = dungeon.current_floor
+	
+	gui.master.mainloop()
+	
 
-	# movement + inventory button creation
-	b = [tk.Button(master) for i in range(5)]
-
-	# movement button configuation
-	b[0].configure(text="North", command=movement_factory("north"))
-	b[3].configure(text="South", command=movement_factory("south"))
-	b[1].configure(text="West", command=movement_factory("west"))
-	b[2].configure(text="East", command=movement_factory("east"))
-
-	# inventory button configuration
-	b[4].configure(text="Inventory", command=p.disp_in)
-
-	b[0].grid(row=2, column=1) # button placement
-	b[1].grid(row=3, column=0)
-	b[2].grid(row=3, column=2)
-	b[3].grid(row=4, column=1)
-	b[4].grid(row=1, column=0)
-
-
-	dungeon.current_floor.disp.grid(row=0, column=3, rowspan=5)
-
-	create_display(dungeon.current_floor.disp)
-
-	# health bar creation
-	healthbar = tk.Canvas(master, width=100 + 10, height=30)
-	healthbar.grid(row=0, column=0, columnspan=3)
-
-	healthbar.create_rectangle(10, 10, 10 + 100, 30)  # health bar drawing
-	healthbar.create_rectangle(10, 10, 10 + (100 * p.health / p.max_health), 30,
-		fill="green", tags="navigation_healthbar")
-	healthbar.create_text(
-		60, 20,
-		text=f"{p.health}/{p.max_health}",
-		tags="navigation_healthbar_text")
-
-	stats = tk.Message(master, text="")
-	stats.grid(row=1, column=1, columnspan=2)
-	update_stats()
-
-	# output text creation
-	out = tk.Message(
-		master,
-		text="Welcome to The Dungeon. Come once, stay forever!",
-		width=W + 100)
-	out.grid(row=5, column=0, columnspan=4)
-
-	entry = tk.Entry(master)
-	entry.grid(row=6, column=1, columnspan=2)
-
-	shop = tk.Menu(master) # top level shop menu
-	stock = tk.Menu(shop, tearoff=0) # drop down menu
-	for i in buyable_items:
-		stock.add_command(   # actual things you can buy
-			label=i.title() + ": " + str(buyable_items[i]().cost),
-			command=buy_item_fact(i))
-
-	shop.add_cascade(menu=stock, label="Shop")
-	master.config(menu=shop) # add menu to screen
-
-	restart_button = tk.Button(
-		master, text="Restart", command=restart, width=10)
-
-	game_over = tk.Canvas(master, width=W + 100, height=H)
-	game_over.create_rectangle(0, 0, W + 100, H + 50, fill="black")
-	game_over.create_text(W/2 + 50, H/2, text="GAME OVER",
-		fill="green", font=end_font)
-	game_over.create_window(W, H * 3/4, window=restart_button)
-	restart_button.lift()
-
-	#  fight screen
-	cbt_scr = tk.Canvas(master, width=W + 100, height=H)
-
-	att_b = tk.Button(master, text="Attack", command=attack)
-	run_b = tk.Button(master, text="Flee", command=flee)
-
-	inter_btn = tk.Button(
-		master, text="", command=lambda event: cur_room().en.interact())
-	leave_btn = tk.Button(
-		master, text="", command=leave)
-
-	# collections of widgets
-	fight_widgets = [cbt_scr, att_b, run_b]
-	# Need to make disp in this list always be the disp of the current floor
-	# to do this disp must be in a known position, namely first
-	navigation_widgets = [dungeon.current_floor.disp, healthbar, out] + b[:-1]
-	other_widgets = [b[4], entry, stats, restart_button, game_over]
-	non_hostile_widgets = [inter_btn, leave_btn]
-
-
-	master.bind("<Up>", movement_factory("north"))  # key bindings
-	master.bind("<Down>", movement_factory("south"))
-	master.bind("<Right>", movement_factory("east"))
-	master.bind("<Left>", movement_factory("west"))
-
-	master.bind("<Return>", enter_key)
-	master.bind("<Button 1>", mouse_click)
-	dungeon.current_floor.disp.bind("<Button 1>", room_info)
-
-	master.mainloop()
 
