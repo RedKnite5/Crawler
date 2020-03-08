@@ -279,8 +279,9 @@ class Player(object):
 		# this is mostly redundent except for the starting room
 		dungeon.current_floor[self.loc[0]][self.loc[1]].visited = True
 		dungeon.current_floor.disp.itemconfig(
-			f"{str(self.loc[0])}, {str(self.loc[1])}",
+			f"{str(self.loc[0])},{str(self.loc[1])}",
 			fill="yellow")
+		print(dungeon.current_floor.disp.gettags(2))
 
 		if dir == "north" and self.loc[1] > 0:   # up
 			self.loc[1] -= 1
@@ -299,7 +300,7 @@ class Player(object):
 
 		dungeon.current_floor[self.loc[0]][self.loc[1]].visited = True
 		dungeon.current_floor.disp.itemconfig(
-			f"{str(self.loc[0])}, {str(self.loc[1])}",
+			f"{str(self.loc[0])},{str(self.loc[1])}",
 			fill="yellow")
 
 	def disp_in(self):
@@ -579,7 +580,8 @@ class Enemy(Encounter):
 
 		# remove enemy icon on map
 		dungeon.current_floor.disp.delete(
-			f"enemy{str(p.loc[0])}, {str(p.loc[1])}")
+			f"enemy{str(p.loc[0])},{str(p.loc[1])}"
+		)
 		cur_room().info = "This is an empty room."
 
 		# take loot
@@ -1391,7 +1393,7 @@ def flee():
 			SMW * p.loc[0] + SMW * 3/4,
 			SMH * p.loc[1] + SMH * 3/4,
 			fill="red",
-			tags=f"enemy{str(p.loc[0])}, {str(p.loc[1])}"
+			tags=f"enemy{str(p.loc[0])},{str(p.loc[1])}"
 		)
 		gui.out.config(text="You got away.")
 	else:
@@ -1468,7 +1470,7 @@ def create_display(disp):
 				SMW * i + SMW,
 				SMH * k + SMH,
 				fill="grey",
-				tags=f"{str(i)}, {str(k)}"
+				tags=f"{str(i)},{str(k)}"
 			)
 
 	# player icon creation
