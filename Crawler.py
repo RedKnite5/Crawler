@@ -51,6 +51,10 @@ ENEMIES = False
 monsters_killed = 0
 
 
+class NotEquipedError(RuntimeError):
+	pass
+
+
 class Dungeon(object):
 	def __init__(self):
 		self.floors = [Floor(0)]
@@ -172,6 +176,8 @@ class Room(object):
 	def __getattr__(self, atter):
 		if atter == "floor":
 			return dungeon[self.location["floor"]]
+		else:
+			raise AttributeError
 
 	def enter(self):
 		"""Set up to enter a room"""
@@ -273,7 +279,7 @@ class Player(object):
 		# this is mostly redundent except for the starting room
 		dungeon.current_floor[self.loc[0]][self.loc[1]].visited = True
 		dungeon.current_floor.disp.itemconfig(
-			str(self.loc[0]) + "," + str(self.loc[1]),
+			f"{str(self.loc[0])}, {str(self.loc[1])}",
 			fill="yellow")
 
 		if dir == "north" and self.loc[1] > 0:   # up
@@ -293,7 +299,7 @@ class Player(object):
 
 		dungeon.current_floor[self.loc[0]][self.loc[1]].visited = True
 		dungeon.current_floor.disp.itemconfig(
-			str(self.loc[0]) + "," + str(self.loc[1]),
+			f"{str(self.loc[0])}, {str(self.loc[1])}",
 			fill="yellow")
 
 	def disp_in(self):
@@ -301,8 +307,30 @@ class Player(object):
 
 		hold = ""
 		for key, val in self.inven.items():
-			hold += "\n" + str(key).title() + ": " + str(val.amount)
+			hold += f"\n{str(key).title()}: {str(val.amount)}"
 		gui.out.config(text=hold[1:])
+	
+	def search_inventory(self, item, searching="inventory"):
+		"""Find the name of the item in the player's inventory or equipment"""
+
+		if searching == "inventory":
+			search = self.inven
+		elif searching == "equipment":
+			search = self.equipment
+		else:
+			raise ValueError
+
+		# if the item is just in the inventory
+		if item in search.keys():
+			return [item]
+
+		items = []
+		for i in search.keys():
+			# check if the item is tiered
+			m = re.match(f"tier ([0-9]+) {item}", i)
+			if m:
+				items.append(f"tier {m.group(1)} {item}")
+		return items
 
 
 class Encounter(object):
@@ -319,26 +347,31 @@ class Encounter(object):
 			image = image.resize((180, 180))
 			type(self).image = ImageTk.PhotoImage(image)
 
-	@classmethod  # Class method to give access to class variables for the
-	# class. This method belongs to not just this base class
+	@classmethod
+	# Class method to give access to class variables for the class.
+	# This method belongs to not just this base class
 	def show_ico(cls, place="NW"):
 		"""Display the image of the enemy"""
 
 		if cls.image:
-			if place == "NW":
-				gui.cbt_scr.create_image(   # encounter icon
-					210, 40, image=cls.image, anchor="nw")
-			elif place == "center":
-				gui.cbt_scr.create_image(   # encounter icon
-					210, 130, image=cls.image, anchor="center")
+			# encounter icon
+			gui.cbt_scr.create_image(
+				210,
+				40,
+				image=cls.image,
+				anchor=place.lower()
+			)
 
 	def meet(self, disp="NW"):
 		"""Start the encounter"""
 		
 		if isinstance(self, Stairs):
 			dungeon.current_floor.disp.create_image(
-				int(SMW * (p.loc[0] + .5)), int(SMH * (p.loc[1] + .5)),
-				image=cur_room().en.icon, anchor="center")
+				int(SMW * (p.loc[0] + .5)),
+				int(SMH * (p.loc[1] + .5)),
+				image=cur_room().en.icon,
+				anchor="center"
+			)
 
 		gui.screen = "encounter"
 		gui.cbt_scr.delete("all")
@@ -353,6 +386,8 @@ class Encounter(object):
 
 
 class Empty(Encounter):
+	"""An empty room"""
+	
 	image = None
 	
 	def __init__(self):
@@ -364,6 +399,7 @@ class Empty(Encounter):
 
 
 class Stairs(Encounter):
+	"""Stairs to another Floor"""
 
 	def __init__(self, location, dist=+1, to=None):
 	
@@ -372,7 +408,8 @@ class Stairs(Encounter):
 			image = image.resize((180, 240))
 			type(self).image = ImageTk.PhotoImage(image)
 
-			icon = Image.open("stairs_icon.png")  # icon of stairs
+			# icon of stairs
+			icon = Image.open("stairs_icon.png")
 			icon = ImageOps.mirror(
 				icon.resize((int(SMW / 2), int(SMH / 2)))
 			)
@@ -433,7 +470,7 @@ class Enemy(Encounter):
 	"""General enemy class. Includes set up for fights, attacking, being
 	attacked, and returning loot"""
 
-	def __init__(self, filename="ImageNotFound_png.png"): #   create enemy
+	def __init__(self, filename="ImageNotFound_png.png"):
 	
 		super().__init__(filename)
 		
@@ -442,12 +479,15 @@ class Enemy(Encounter):
 		self.health = 1
 		self.damage = 1
 		self.name = "enemy"
-		self.loot = {   # must be done again after stats are finalized
+		# must be done again after stats are finalized
+		self.loot = {
 			"undefined_collectable_item": CollectableItem()
 		}
 
 
 	def meet(self):
+		"""Format screen for a fight"""
+		
 		super().meet()
 
 		gui.screen = "fight"
@@ -468,7 +508,8 @@ class Enemy(Encounter):
 		# enemy health bar
 		gui.cbt_scr.create_rectangle(W + 90, 10, W - 10, 30)
 
-		gui.cbt_scr.create_rectangle(   # enemy health
+		# enemy health
+		gui.cbt_scr.create_rectangle(
 			W + 90,
 			10,
 			W + 90 - (100 * self.health / self.max_health),
@@ -509,7 +550,7 @@ class Enemy(Encounter):
 		if p.health <= 0:
 			gui.lose()
 		gui.update_healthbar()
-		gui.out.config(text="The enemy did " + str(damage_delt) + " damage!")
+		gui.out.config(text=f"The enemy did {str(damage_delt)} damage!")
 
 	def be_attacked(self):
 		"""The player attacks. The enemy is damaged"""
@@ -531,16 +572,18 @@ class Enemy(Encounter):
 		self.alive = False
 		monsters_killed += 1
 		hold = "You got: \n"
-		for key, val in self.loot.items():  # display loot
-			hold += str(key).title() + ": " + str(val.amount) + "\n"
+		# display loot
+		for key, val in self.loot.items():
+			hold += f"{str(key).title()}: {str(val.amount)}\n"
 		gui.out.config(text=hold[:-1])
 
 		# remove enemy icon on map
 		dungeon.current_floor.disp.delete(
-			"enemy" + str(p.loc[0]) + "," + str(p.loc[1]))
+			f"enemy{str(p.loc[0])}, {str(p.loc[1])}")
 		cur_room().info = "This is an empty room."
 
-		for i in self.loot:  # take loot
+		# take loot
+		for i in self.loot:
 			if i in p.inven:
 				p.inven[i] += self.loot[i]
 			else:
@@ -631,7 +674,7 @@ class EquipableItem(CollectableItem):
 			)
 		else:
 			self.equiped = True
-			gui.out.config(text="You equip the " + self.name)
+			gui.out.config(text=f"You equip the {self.name}")
 			# should rework how inventory interacts with equipment
 			p.inven[self.name] -= 1
 
@@ -644,13 +687,15 @@ class EquipableItem(CollectableItem):
 		"""Unequip the item"""
 
 		if self.name in p.equipment:
-			self.unequiped = True  # would prefer for this to be a
-			                       # temporary variable
+			# would prefer for this to be a temporary variable
+			self.unequiped = True
 			p.inven[self.name] += 1
 			p.equipment[self.name][1] -= 1
 			if p.equipment[self.name][1] <= 0:
 				p.equipment.pop(self.name)
-			gui.out.config(text="You unequip the " + self.name)
+			gui.out.config(text=f"You unequip the {self.name}")
+		else:
+			raise NotEquipedError(f"{self.name} is not equiped")
 
 
 class BuyableItem(CollectableItem):
@@ -706,8 +751,8 @@ class SlimeHeart(UsableItem):
 
 		gui.update_healthbar()
 
-
-class Sword(BuyableItem, EquipableItem):  # sword in shop
+# sword in shop
+class Sword(BuyableItem, EquipableItem):
 	"""A basic weapon"""
 
 	name = "sword"
@@ -724,7 +769,8 @@ class Sword(BuyableItem, EquipableItem):  # sword in shop
 		super().equip()
 		if self.equiped:
 			p.damage += 5
-			self.equiped = False  # reset this variable
+			# reset this variable
+			self.equiped = False
 			gui.update_stats()
 
 	def unequip(self):
@@ -733,7 +779,8 @@ class Sword(BuyableItem, EquipableItem):  # sword in shop
 		super().unequip()
 		if self.unequiped:
 			p.damage -= 5
-			self.unequiped = False  # reset this variable
+			# reset this variable
+			self.unequiped = False
 			gui.update_stats()
 
 
@@ -744,10 +791,11 @@ class GUI(object):
 		
 		self.master = tk.Tk()
 		
-		self.master.title(string="The Dungeon")  # window name
+		# window name
+		self.master.title(string="The Dungeon")
 		self.empty_menu = tk.Menu(self.master)
 		
-		# movement + inventory button creation
+		# movement & inventory button creation
 		self.b = [tk.Button(self.master) for i in range(5)]
 
 		# movement button configuation
@@ -768,7 +816,8 @@ class GUI(object):
 			command=self.movement_factory("east")
 		)
 
-		self.b[0].grid(row=2, column=1) # button placement
+		# button placement
+		self.b[0].grid(row=2, column=1)
 		self.b[1].grid(row=3, column=0)
 		self.b[2].grid(row=3, column=2)
 		self.b[3].grid(row=4, column=1)
@@ -802,7 +851,7 @@ class GUI(object):
 		for i in buyable_items:
 			# actual things you can buy
 			self.stock.add_command(
-				label=i.title() + ": " + str(buyable_items[i]().cost),
+				label=f"{i.title()}: {str(buyable_items[i]().cost)}",
 				command=buy_item_fact(i)
 			)
 
@@ -866,6 +915,7 @@ class GUI(object):
 		self.master.bind("<Button 1>", self.mouse_click)
 
 	def player_config(self, p):
+		"""Configure the settings that require the player exist"""
 		
 		self.p = p
 		
@@ -889,18 +939,17 @@ class GUI(object):
 		self.update_stats()
 	
 	def dungeon_config(self, dungeon):
+		"""Configure settings that require that the dungeon object exist"""
+		
 		self.dungeon = dungeon
-		
 		self.dungeon.current_floor.disp.grid(row=0, column=3, rowspan=5)
-
 		create_display(self.dungeon.current_floor.disp)
-		
 		self.dungeon.current_floor.disp.bind("<Button 1>", room_info)
 	
 	def __getattr__(self, attr):
 	
-		# Need to make disp in this list always be the disp of the current floor
-		# to do this disp must be in a known position, namely first
+		# Need to make disp in this list always be the disp of the current
+		# floor
 		if attr == "navigation_widgets":
 			return ([
 				self.dungeon.current_floor.disp,
@@ -926,12 +975,14 @@ class GUI(object):
 		data = input_analysis(self.entry.get())
 		item = data["subject"] # name of item
 		# name of item in the player's inventory
-		inv_names = search_inventory(item)
+		inv_names = self.p.search_inventory(item)
 
 		# if you dont have any of the possible items and are trying to use or
 		# equip an item
-		if (not any(self.p.inven.get(name, 0) for name in inv_names) and
-			data["command"] in ("equip", "use")):
+		if (
+			not any(self.p.inven.get(name, 0) for name in inv_names)
+			and data["command"] in ("equip", "use")
+		):
 			self.out.config(text="You do not have any of that")
 			return
 
@@ -952,7 +1003,8 @@ class GUI(object):
 				return
 		elif len(inv_names) > 0:
 
-			# If more than one value with at least one in the inventory, return
+			# If more than one value with at least one in the
+			# inventory, return
 			if sum(1 for name in inv_names if self.p.inven.get(name, 0)) > 1:
 				self.out.config(
 					text="More than one item fits that description"
@@ -974,10 +1026,10 @@ class GUI(object):
 
 			# look for the item in equipment if you are trying to unequip
 			# something
-			inv_names = search_inventory(item, "equipment")
+			inv_names = self.p.search_inventory(item, "equipment")
 			try:
 				self.p.inven[inv_name].unequip()
-			except:
+			except NotEquipedError:
 				self.out.config(text=f"{inv_name.title()} is not equiped")
 
 		elif data["command"] == "equip":
@@ -1002,11 +1054,12 @@ class GUI(object):
 									return
 
 					self.p.inven[inv_name].equip()
-					if self.screen == "fight":  # equiping items takes a turn
+					# equiping items takes a turn
+					if self.screen == "fight":
 						cur_room().en.attack()
 				else:
 					self.out.config(text="You do not have any of that")
-			except Exception as e:
+			except AttributeError:
 				self.out.config(text="That item is not equipable")
 
 		elif data["command"] == "use":
@@ -1018,7 +1071,7 @@ class GUI(object):
 						cur_room().en.attack()
 				else:
 					self.out.config(text="You do not have any of that")
-			except:
+			except AttributeError:
 				self.out.config(text="That item is not usable")
 
 		else:
@@ -1035,12 +1088,12 @@ class GUI(object):
 					self.p.inven[inv_name].use()
 					if self.screen == "fight":
 						cur_room().en.attack()
-				except:
+				except AttributeError:
 					try:  # if you can equip the item
 						self.p.inven[inv_name].equip()
 						if self.screen == "fight":  # using items takes a turn
 							cur_room().en.attack()
-					except:
+					except AttributeError:
 						self.out.config(text="That item is not usable")
 			else:
 				self.out.config(text="You do not have any of that")
@@ -1228,29 +1281,6 @@ def input_analysis(s):
 	return data
 
 
-def search_inventory(item, searching="inventory"):
-	"""Find the name of the item in the player's inventory or equipment"""
-
-	if searching == "inventory":
-		search = p.inven
-	elif searching == "equipment":
-		search = p.equipment
-	else:
-		raise ValueError
-
-	# if the item is just in the inventory
-	if item in search.keys():
-		return [item]
-
-	items = []
-	for i in search.keys():
-		# check if the item is tiered
-		m = re.match(f"tier ([0-9]+) {item}", i)
-		if m:
-			items.append(f"tier {m.group(1)} {item}")
-	return items
-
-
 def occupied_equipment(ment):
 	"""Figure out what equipment spaces are used"""
 
@@ -1361,7 +1391,7 @@ def flee():
 			SMW * p.loc[0] + SMW * 3/4,
 			SMH * p.loc[1] + SMH * 3/4,
 			fill="red",
-			tags="enemy" + str(p.loc[0]) + "," + str(p.loc[1])
+			tags=f"enemy{str(p.loc[0])}, {str(p.loc[1])}"
 		)
 		gui.out.config(text="You got away.")
 	else:
@@ -1438,7 +1468,7 @@ def create_display(disp):
 				SMW * i + SMW,
 				SMH * k + SMH,
 				fill="grey",
-				tags=str(i) + "," + str(k)
+				tags=f"{str(i)}, {str(k)}"
 			)
 
 	# player icon creation
