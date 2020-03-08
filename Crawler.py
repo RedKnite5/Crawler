@@ -278,10 +278,11 @@ class Player(object):
 
 		# this is mostly redundent except for the starting room
 		dungeon.current_floor[self.loc[0]][self.loc[1]].visited = True
+		# if there is a space in the tags tkinter will split it up
+		# do not add one
 		dungeon.current_floor.disp.itemconfig(
 			f"{str(self.loc[0])},{str(self.loc[1])}",
 			fill="yellow")
-		print(dungeon.current_floor.disp.gettags(2))
 
 		if dir == "north" and self.loc[1] > 0:   # up
 			self.loc[1] -= 1
@@ -299,6 +300,7 @@ class Player(object):
 		dungeon.current_floor[self.loc[0]][self.loc[1]].enter()
 
 		dungeon.current_floor[self.loc[0]][self.loc[1]].visited = True
+		# if there is a space in the tags tkinter will split it up
 		dungeon.current_floor.disp.itemconfig(
 			f"{str(self.loc[0])},{str(self.loc[1])}",
 			fill="yellow")
@@ -356,12 +358,23 @@ class Encounter(object):
 
 		if cls.image:
 			# encounter icon
-			gui.cbt_scr.create_image(
-				210,
-				40,
-				image=cls.image,
-				anchor=place.lower()
-			)
+			if place == "NW":
+				# encounter icon
+				gui.cbt_scr.create_image(
+					210,
+					40,  # 40 is different from 130
+					image=cls.image,
+					anchor="nw"
+				)
+			elif place == "center":
+				# encounter icon
+				gui.cbt_scr.create_image(
+					210,
+					130,  # 130 is different from 40
+					image=cls.image,
+					anchor="center"
+				)
+
 
 	def meet(self, disp="NW"):
 		"""Start the encounter"""
@@ -579,6 +592,7 @@ class Enemy(Encounter):
 		gui.out.config(text=hold[:-1])
 
 		# remove enemy icon on map
+		# if there is a space in the tags tkinter will split it up
 		dungeon.current_floor.disp.delete(
 			f"enemy{str(p.loc[0])},{str(p.loc[1])}"
 		)
@@ -1387,6 +1401,8 @@ def flee():
 	if chance > 50:
 		gui.navigation_mode()
 		# create an icon for an enemy the player knows about
+		# if there is a space in the tags tkinter will split it up so
+		# don't add one
 		dungeon.current_floor.disp.create_oval(
 			SMW * p.loc[0] + SMW / 4,
 			SMH * p.loc[1] + SMH / 4,
@@ -1464,6 +1480,8 @@ def create_display(disp):
 	# display creation
 	for i in range(DUN_W):
 		for k in range(DUN_H):
+			# if there is a space in the tags tkinter will split it up
+			# do not add one
 			disp.create_rectangle(
 				SMW * i,
 				SMH * k,
