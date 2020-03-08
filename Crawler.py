@@ -25,8 +25,8 @@ from PIL import ImageTk
 	# 5)
 
 # should these be placed in a config file?
-DUN_W = 4   # number of rooms wide         # constant intialization
-DUN_H = 4
+DUN_W = 2   # number of rooms wide         # constant intialization
+DUN_H = 2
 W = 300        # width of map screen in pixels
 H = 300
 SMW = W / DUN_W  # width of a room in pixels
@@ -46,9 +46,8 @@ STARTING_ROOM_TYPE = 0
 DOWN_STAIRS_TYPE = -1
 UP_STAIRS_TYPE = -2
 
-ENEMIES = True
+ENEMIES = False
 
-screen = "navigation"
 monsters_killed = 0
 
 
@@ -310,7 +309,6 @@ class Encounter(object):
 	
 	def __init__(self, filename="ImageNotFound_png.png"):
 		
-		
 			# image is a class variable to reduce variable initialization
 			# (the repeated defining of self.image), copying of large
 			# variables, reduce amount of global variables, and keep
@@ -336,20 +334,22 @@ class Encounter(object):
 
 	def meet(self, disp="NW"):
 		"""Start the encounter"""
-
-		global screen
 		
 		if isinstance(self, Stairs):
 			dungeon.current_floor.disp.create_image(
 				int(SMW * (p.loc[0] + .5)), int(SMH * (p.loc[1] + .5)),
 				image=cur_room().en.icon, anchor="center")
 
-		screen = "encounter"
+		gui.screen = "encounter"
 		gui.cbt_scr.delete("all")
 		self.show_ico(place=disp)
 
 	def leave(self):
 		gui.navigation_mode()
+	
+	@classmethod
+	def reset(cls):
+		del cls.image
 
 
 class Empty(Encounter):
@@ -413,8 +413,7 @@ class Stairs(Encounter):
 	def meet(self, disp="center"):
 		super().meet(disp)
 		
-		global screen
-		screen = "stairs"
+		gui.screen = "stairs"
 
 		gui.clear_screen()
 		gui.cbt_scr.grid(row=0, column=0, columnspan=4)
@@ -451,8 +450,7 @@ class Enemy(Encounter):
 	def meet(self):
 		super().meet()
 
-		global screen
-		screen = "fight"
+		gui.screen = "fight"
 		gui.clear_screen()
 		gui.cbt_scr.grid(row=0, column=0, columnspan=3)
 		gui.att_b.grid(row=1, column=0)
@@ -509,7 +507,7 @@ class Enemy(Encounter):
 		)
 		p.health -= damage_delt
 		if p.health <= 0:
-			lose()
+			gui.lose()
 		gui.update_healthbar()
 		gui.out.config(text="The enemy did " + str(damage_delt) + " damage!")
 
@@ -740,7 +738,10 @@ class Sword(BuyableItem, EquipableItem):  # sword in shop
 
 
 class GUI(object):
-	def __init__(self):
+	def __init__(self):	
+		
+		self.screen = "navigation"
+		
 		self.master = tk.Tk()
 		
 		self.master.title(string="The Dungeon")  # window name
@@ -750,10 +751,22 @@ class GUI(object):
 		self.b = [tk.Button(self.master) for i in range(5)]
 
 		# movement button configuation
-		self.b[0].configure(text="North", command=movement_factory("north"))
-		self.b[3].configure(text="South", command=movement_factory("south"))
-		self.b[1].configure(text="West", command=movement_factory("west"))
-		self.b[2].configure(text="East", command=movement_factory("east"))
+		self.b[0].configure(
+			text="North",
+			command=self.movement_factory("north")
+		)
+		self.b[3].configure(
+			text="South",
+			command=self.movement_factory("south")
+		)
+		self.b[1].configure(
+			text="West",
+			command=self.movement_factory("west")
+		)
+		self.b[2].configure(
+			text="East",
+			command=self.movement_factory("east")
+		)
 
 		self.b[0].grid(row=2, column=1) # button placement
 		self.b[1].grid(row=3, column=0)
@@ -844,15 +857,14 @@ class GUI(object):
 		self.non_hostile_widgets = [self.inter_btn, self.leave_btn]
 
 		# key bindings
-		self.master.bind("<Up>", movement_factory("north"))
-		self.master.bind("<Down>", movement_factory("south"))
-		self.master.bind("<Right>", movement_factory("east"))
-		self.master.bind("<Left>", movement_factory("west"))
+		self.master.bind("<Up>", self.movement_factory("north"))
+		self.master.bind("<Down>", self.movement_factory("south"))
+		self.master.bind("<Right>", self.movement_factory("east"))
+		self.master.bind("<Left>", self.movement_factory("west"))
 
 		self.master.bind("<Return>", self.enter_key)
-		self.master.bind("<Button 1>", mouse_click)
+		self.master.bind("<Button 1>", self.mouse_click)
 
-	
 	def player_config(self, p):
 		
 		self.p = p
@@ -897,6 +909,8 @@ class GUI(object):
 				]
 				+ self.b[:-1]
 			)
+		else:
+			raise AttributeError
 	
 	def update_stats(self):
 		"""Update the stats for the player"""
@@ -904,7 +918,6 @@ class GUI(object):
 		self.stats.config(
 			text=f"Damage: {self.p.damage}\nDefence: {self.p.defence}"
 		)
-
 
 	def enter_key(self, event):
 		"""This function triggers when you press the enter key in the
@@ -989,7 +1002,7 @@ class GUI(object):
 									return
 
 					self.p.inven[inv_name].equip()
-					if screen == "fight":  # equiping items takes a turn
+					if self.screen == "fight":  # equiping items takes a turn
 						cur_room().en.attack()
 				else:
 					self.out.config(text="You do not have any of that")
@@ -1000,7 +1013,7 @@ class GUI(object):
 			try:   # if you can use the item
 				if self.p.inven[inv_name].amount > 0:
 					self.p.inven[inv_name].use()
-					if screen == "fight":
+					if self.screen == "fight":
 						# using items during a fight uses a turn
 						cur_room().en.attack()
 				else:
@@ -1020,12 +1033,12 @@ class GUI(object):
 			if self.p.inven[inv_name].amount > 0:
 				try:   # if you can use the item
 					self.p.inven[inv_name].use()
-					if screen == "fight":
+					if self.screen == "fight":
 						cur_room().en.attack()
 				except:
 					try:  # if you can equip the item
 						self.p.inven[inv_name].equip()
-						if screen == "fight":  # using items takes a turn
+						if self.screen == "fight":  # using items takes a turn
 							cur_room().en.attack()
 					except:
 						self.out.config(text="That item is not usable")
@@ -1060,12 +1073,9 @@ class GUI(object):
 			"navigation_healthbar_text",
 			text=f"{self.p.health}/{self.p.max_health}"
 		)			
-		
 
 	def navigation_mode(self):
 		"""Switch to navigation screen"""
-
-		global screen
 		
 		self.cbt_scr.delete("all")
 		for i in self.fight_widgets + self.non_hostile_widgets:
@@ -1078,7 +1088,7 @@ class GUI(object):
 		self.entry.grid(row=6, column=1, columnspan=2)
 		self.stats.grid(row=1, column=1, columnspan=2)
 		self.master.config(menu=self.shop)
-		screen = "navigation"
+		self.screen = "navigation"
 		self.healthbar.coords(
 			"navigation_healthbar",
 			10,
@@ -1088,7 +1098,7 @@ class GUI(object):
 		)
 			
 	def leave(self):
-		if screen == "fight":
+		if self.screen == "fight":
 			flee()
 		else:
 			self.navigation_mode()
@@ -1109,6 +1119,41 @@ class GUI(object):
 		):
 			i.grid_remove()
 		self.master.config(menu=self.empty_menu)
+
+	def lose(self):
+		"""Change screen to the game over screen"""
+
+		self.screen = "game over"
+		self.clear_screen()
+		self.game_over.grid(row=0, column=0)
+
+	@staticmethod
+	def mouse_click(event):
+		"""The mouse is clicked in the master window. Used to unfocus from the
+		entry widget"""
+
+		event.widget.focus()
+
+	# factory necessary for tkinter key binding reasons
+	def movement_factory(_self, direction):
+		"""Factory for moveing the character functions"""
+
+		def move_func(self, event=None):
+			"""Move in a direction"""
+			
+			if self.screen == "stairs":
+				self.navigation_mode()
+			
+			if (
+				self.screen != "fight"
+				and self.master.focus_get() is not self.entry
+			):
+				self.p.move(direction)
+		
+		if not hasattr(type(_self), "move_" + direction):
+			setattr(type(_self), "move_" + direction, move_func)
+		return getattr(_self, "move_" + direction)
+
 
 # needed to create different tiers of armor dynamically
 def armor_factory(tier):
@@ -1150,28 +1195,6 @@ def armor_factory(tier):
 				gui.update_stats()
 
 	return Armor  # return the class from the factory
-
-# factory necessary for tkinter key binding reasons
-def movement_factory(direction):
-	"""Factory for moveing the character functions"""
-
-	def move_func(event=None):
-		"""Move in a direction"""
-		
-		if screen == "stairs":
-			gui.navigation_mode()
-		
-		if screen != "fight" and gui.master.focus_get() is not gui.entry:
-			p.move(direction)
-
-	return move_func
-
-
-def mouse_click(event):
-	"""The mouse is clicked in the master window. Used to unfocus from the
-	entry widget"""
-
-	event.widget.focus()
 
 
 def input_analysis(s):
@@ -1346,7 +1369,6 @@ def flee():
 		gui.out.config(text="You couldn't get away.")
 
 
-
 def room_info(event):
 	"""Give information about rooms by clicking on them"""
 
@@ -1373,35 +1395,35 @@ def room_info(event):
 			out.config(text="Unknown")
 
 
-def lose():
-	"""Change screen to the game over screen"""
-
-	screen = "game over"
-	clear_screen()
-	game_over.grid(row=0, column=0)
-
-
 def restart():
 	"""Reset all the values of the game and prepare to start over"""
 
-	global dungeon, p, monsters_killed
+	global dungeon, p, monsters_killed, gui
+	
+	gui.master.destroy()
+	del gui
+	
+	# reset images for TKimage to work
+	Goblin.reset()
+	Slime.reset()
+	
+	gui = GUI()
+	
+	del p
+	p = Player()
+	gui.player_config(p)
+	
+	
 
 	del dungeon
 	dungeon = Dungeon()
-
-	del p
-	p = Player()
+	gui.dungeon_config(dungeon)
+	
+	dungeon.current_floor.disp.focus()
 
 	monsters_killed = 0
-
-	update_healthbar()
-	update_stats()
-	game_over.grid_remove()
-	screen = "navigation"
-	navigation_mode()
-	dungeon.current_floor.disp.delete("all")
-	create_display(dungeon.current_floor.disp)
-	out.config(text="Welcome to The Dungeon!")
+	
+	gui.master.mainloop()
 
 
 def create_display(disp):
@@ -1424,7 +1446,7 @@ def create_display(disp):
 		SMW * p.loc[0],
 		SMH * p.loc[1],
 		SMW * p.loc[0] + SMW,
-		SMH * p.loc[1] +SMH,
+		SMH * p.loc[1] + SMH,
 		fill = "green",
 		tags = "player"
 	)
