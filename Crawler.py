@@ -17,16 +17,13 @@ from PIL import ImageTk
 # ToDo:
 	# 1) If you equip and unequip a sword, further attempts to unequip will
 	#    not produce any message.
-	# 2) Figure out why "Mys line 1" is there. "Mys line 1" is a label in a
-	#    nearby comment
+	# 2) Rewrite the enter method of GUI
 	# 3) Change how equiping stuff works so that it doesn't remove it from
 	#    the inventory, just puts a marker by it.
-	# 4) Make the next floor do something.
-	# 5)
 
 # should these be placed in a config file?
-DUN_W = 2   # number of rooms wide         # constant intialization
-DUN_H = 2
+DUN_W = 3   # number of rooms wide         # constant intialization
+DUN_H = 3
 W = 300        # width of map screen in pixels
 H = 300
 SMW = W / DUN_W  # width of a room in pixels
@@ -35,20 +32,25 @@ COST_MUL = 1
 STARTING_GOLD = 300
 DISTANCE_DIFF = 70
 DEFAULT_MAX_HEALTH = 100
-DEFAULT_DAMAGE = 10
+DEFAULT_DAMAGE = 1000
+DEFAULT_DEFENCE = 1000
 HEAL_POT_VAL = 50    # the amount of a health potion heals
 SLIME_HEART_VAL = 5  # the amount of health a slime heart gives
-SLIME_CUTOFF = 1700
-GOB_CUTOFF = 1100
-ENEMY_CUTOFF = 100
+DRIDER_CUTOFF = 1700
+SLIME_CUTOFF = 1000
+GOB_CUTOFF = 100
 NON_VIOLENT_ENC_CUTOFF = 1
 STARTING_ROOM_TYPE = 0
 DOWN_STAIRS_TYPE = -1
 UP_STAIRS_TYPE = -2
 
-ENEMIES = False
+ENEMIES = True
 
 monsters_killed = 0
+
+
+class ItemNotFoundError(ValueError):
+	pass
 
 
 class NotEquipedError(RuntimeError):
@@ -89,10 +91,10 @@ class Floor(object):
 		for i in range(DUN_W): # map generation
 			column = []
 			for k in range(DUN_H):
-				column.append(Room(
+				column.append(Room(int(
 					(abs(i - int((DUN_W - 1) / 2))
-					+ abs(k - int((DUN_H - 1) / 2)))
-					* DISTANCE_DIFF,
+					+ abs(k - int((DUN_H - 1) / 2))) * 1.5
+					* DISTANCE_DIFF + 150 * self.floor_num),
 					{"x": i, "y": k, "floor": self.floor_num}))
 			self.dun.append(column)
 
@@ -125,9 +127,9 @@ class Room(object):
 		self.location = location
 		self.visited = False
 		if ENEMIES:
-			self.type = rand.randint(
-				NON_VIOLENT_ENC_CUTOFF,
-				1000) + difficulty
+			self.type = int(rand.gauss(difficulty + 400, 140))
+			if self.type < 1:
+				self.type = 1
 		else:
 			self.type = NON_VIOLENT_ENC_CUTOFF
 		self.init2()
@@ -136,20 +138,19 @@ class Room(object):
 	# manually
 	def init2(self, **kwargs):
 		"""Set various variables that may need to be updated all together"""
-
-		if SLIME_CUTOFF >= self.type > GOB_CUTOFF:  # enemy generation
+		
+		# enemy generation
+		if DRIDER_CUTOFF <= self.type:
+			self.en = Drider()
+		elif SLIME_CUTOFF <= self.type:
 			self.en = Slime()
-		elif GOB_CUTOFF >= self.type > ENEMY_CUTOFF:
+		elif GOB_CUTOFF <= self.type:
 			self.en = Goblin()
-		elif ENEMY_CUTOFF >= self.type >= NON_VIOLENT_ENC_CUTOFF:
+		else:
 			self.info = "This is an empty room"
 			self.en = Empty()
-		else:
-			# these should be overwritten
-			self.info = "UNDEFINED"
-			self.en = Empty()
 
-		if self.type > ENEMY_CUTOFF:
+		if self.type > NON_VIOLENT_ENC_CUTOFF:
 			self.info = f"This is a room with a {self.en.name}"
 
 		if self.type == STARTING_ROOM_TYPE:
@@ -197,11 +198,12 @@ class Room(object):
 			self.en.meet()
 
 
-@total_ordering  # used primarily for sorting items by amount
+# used primarily for sorting items by amount
+@total_ordering
 class CollectableItem(object):
 	"""Class for any item that can be gained by the player."""
 
-	def __init__(self, amount=1):
+	def __init__(self, amount=1, *args):
 		self.amount = amount
 		self.name = "undefined_collectable_item"
 		self.plurale = False
@@ -261,17 +263,18 @@ class Player(object):
 	def __init__(self, race="human"):
 		"""Setting stats and variables"""
 
-		#self.race = race
+		self.race = race
 		self.loc = [int((DUN_W - 1) / 2), int((DUN_H - 1) / 2)]
 		self.floor = None
 		self.max_health = DEFAULT_MAX_HEALTH
 		self.health = self.max_health
 		self.damage = DEFAULT_DAMAGE
-		self.defence = 0
+		self.defence = DEFAULT_DEFENCE
 		self.experiance = 0
 		self.lvl = 1
 		self.inven = {"gold": Gold(amount=STARTING_GOLD)}
 		self.equipment = {}
+		self.status = None
 
 	def move(self, dir):
 		"""Player movement on map function"""
@@ -321,7 +324,7 @@ class Player(object):
 		elif searching == "equipment":
 			search = self.equipment
 		else:
-			raise ValueError
+			raise ItemNotFoundError
 
 		# if the item is just in the inventory
 		if item in search.keys():
@@ -338,7 +341,7 @@ class Player(object):
 
 class Encounter(object):
 	
-	def __init__(self, filename="ImageNotFound_png.png"):
+	def __init__(self, filename="ImageNotFound.png"):
 		
 			# image is a class variable to reduce variable initialization
 			# (the repeated defining of self.image), copying of large
@@ -484,7 +487,7 @@ class Enemy(Encounter):
 	"""General enemy class. Includes set up for fights, attacking, being
 	attacked, and returning loot"""
 
-	def __init__(self, filename="ImageNotFound_png.png"):
+	def __init__(self, filename="ImageNotFound.png"):
 	
 		super().__init__(filename)
 		
@@ -497,6 +500,10 @@ class Enemy(Encounter):
 		self.loot = {
 			"undefined_collectable_item": CollectableItem()
 		}
+
+
+	def gold_gen(self):
+		return Gold(amount=self.max_health // 3 + self.damage // 2 + 2)
 
 
 	def meet(self):
@@ -616,18 +623,19 @@ class Goblin(Enemy):
 		
 		if not hasattr(type(self), "image"):
 			# enemy icon stuff
-			image = Image.open("TypicalGoblin_png.png")
+			image = Image.open("TypicalGoblin.png")
 			image = ImageOps.mirror(image.resize((180, 180)))
 			type(self).image = ImageTk.PhotoImage(image)
 
 		super().__init__(*args, **kwargs)
-		self.max_health = rand.randint(30, 40) + monsters_killed
+		self.max_health = rand.randint(30, 40) + monsters_killed // 2
 		self.health = self.max_health
-		self.damage = rand.randint(3, 6) + monsters_killed // 3
+		self.damage = rand.randint(3, 6) + monsters_killed // 5
 		self.name = "goblin"
 		self.loot = {
-			"gold": Gold(amount=self.max_health // 3 + self.damage // 2 + 2)
+			"gold": self.gold_gen()
 		}
+		
 		if not rand.randint(0, 2):
 			self.loot["health potion"] = HealthPot()
 
@@ -638,17 +646,30 @@ class Slime(Enemy):
 	def __init__(self, *args, **kwargs):
 		"""Set stats and loot"""
 
-		super().__init__(*args, filename="SlimeMonster_png.png", **kwargs)
+		super().__init__(*args, filename="SlimeMonster.png", **kwargs)
 		self.max_health = rand.randint(50, 70) + (3 * monsters_killed) // 2
 		self.health = self.max_health
-		self.damage = rand.randint(10, 20) + monsters_killed // 2
+		self.damage = rand.randint(10, 15) + monsters_killed // 4
 		self.name = "slime monster"
 		self.loot = {
-			"gold": Gold(amount=self.max_health // 3 + self.damage // 2 + 2)
+			"gold": self.gold_gen()
 		}
 		if not rand.randint(0, 15):
 			self.loot["slime heart"] = SlimeHeart()
 
+
+class Drider(Enemy):
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, filename="Drider.png", **kwargs)
+		
+		self.max_health = rand.randint(40, 60) + monsters_killed
+		self.health = self.max_health
+		self.damage = rand.randint(20, 30) + monsters_killed // 2
+		self.name = "drider"
+		self.loot = {
+			"gold": self.gold_gen() + 10
+		}
+		
 
 class UsableItem(CollectableItem):
 	"""An item that can be used and consumed on use"""
@@ -733,11 +754,14 @@ class BuyableItem(CollectableItem):
 		pass
 
 
-class HealthPot(UsableItem):
+class HealthPot(UsableItem, BuyableItem):
 	"""An item that heals the player"""
+
+	name = "health potion"
 
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
+		self.cost = int(100 * COST_MUL)
 		self.name = "health potion"
 
 	def use(self):
@@ -1356,7 +1380,7 @@ def buy_item_fact(item_name, amount=1, *args):
 	return buy_specific_item
 
 
-_bitems = [Sword, armor_factory(1)]
+_bitems = [Sword, HealthPot, armor_factory(1)]
 buyable_items = {item.name: item for item in _bitems}
 
 
