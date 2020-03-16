@@ -6,11 +6,13 @@ import tkinter as tk
 from functools import total_ordering
 from math import atan, pi
 from math import fabs as abs
-from tkinter import font
 
 from PIL import Image
 from PIL import ImageOps
 from PIL import ImageTk
+
+from GUI import GUI
+from config import *
 
 #   python Crawler.py
 
@@ -21,30 +23,7 @@ from PIL import ImageTk
 	# 3) Change how equiping stuff works so that it doesn't remove it from
 	#    the inventory, just puts a marker by it.
 
-# should these be placed in a config file?
-DUN_W = 3   # number of rooms wide         # constant intialization
-DUN_H = 3
-W = 300        # width of map screen in pixels
-H = 300
-SMW = W / DUN_W  # width of a room in pixels
-SMH = H / DUN_H
-COST_MUL = 1
-STARTING_GOLD = 300
-DISTANCE_DIFF = 70
-DEFAULT_MAX_HEALTH = 100
-DEFAULT_DAMAGE = 1000
-DEFAULT_DEFENCE = 1000
-HEAL_POT_VAL = 50    # the amount of a health potion heals
-SLIME_HEART_VAL = 5  # the amount of health a slime heart gives
-DRIDER_CUTOFF = 1700
-SLIME_CUTOFF = 1000
-GOB_CUTOFF = 100
-NON_VIOLENT_ENC_CUTOFF = 1
-STARTING_ROOM_TYPE = 0
-DOWN_STAIRS_TYPE = -1
-UP_STAIRS_TYPE = -2
 
-ENEMIES = True
 
 monsters_killed = 0
 
@@ -65,17 +44,26 @@ class Dungeon(object):
 	def __getattr__(self, attr):
 		if attr == "current_floor":
 			return self.floors[self.floor_num]
-			
+
 	def __getitem__(self, index):
 		return self.floors[index]
-	
+
 	def gen_floor(self, up_stair_location, level="+1"):
 		if level[0] == "+" and level[1:].isdigit():
 			new_floor_num = self.floor_num + int(level[1:])
 		else:
 			new_floor_num = int(level)
-		
+
 		self.floors.append(Floor(new_floor_num, up_stair_location))
+
+	def check_all_rooms(self):
+		"""Check if all rooms have been visited"""
+
+		for row in self.current_floor:
+			for room in row:
+				if not room.visited:
+					return False
+		return True
 
 
 class Floor(object):
@@ -106,8 +94,7 @@ class Floor(object):
 		else:
 			center_room.type = UP_STAIRS_TYPE
 			center_room.init2(dest=upstairs)
-		
-		
+
 		self.disp = tk.Canvas(gui.master, width=W, height=H)
 		create_display(self.disp)
 
@@ -138,7 +125,7 @@ class Room(object):
 	# manually
 	def init2(self, **kwargs):
 		"""Set various variables that may need to be updated all together"""
-		
+
 		# enemy generation
 		if DRIDER_CUTOFF <= self.type:
 			self.en = Drider()
@@ -173,18 +160,15 @@ class Room(object):
 				to=kwargs["dest"]
 			)
 
-
-	def __getattr__(self, atter):
-		if atter == "floor":
-			return dungeon[self.location["floor"]]
-		else:
-			raise AttributeError
+	@property
+	def floor(self):
+		return dungeon[self.location["floor"]]
 
 	def enter(self):
 		"""Set up to enter a room"""
 
 		self.visited = True
-		floor_finished = check_all_rooms()
+		floor_finished = dungeon.check_all_rooms()
 
 		if floor_finished and not self.floor.stairs:
 			# make this room stairs down to the next floor
@@ -315,7 +299,7 @@ class Player(object):
 		for key, val in self.inven.items():
 			hold += f"\n{str(key).title()}: {str(val.amount)}"
 		gui.out.config(text=hold[1:])
-	
+
 	def search_inventory(self, item, searching="inventory"):
 		"""Find the name of the item in the player's inventory or equipment"""
 
@@ -340,14 +324,14 @@ class Player(object):
 
 
 class Encounter(object):
-	
+
 	def __init__(self, filename="ImageNotFound.png"):
-		
-			# image is a class variable to reduce variable initialization
-			# (the repeated defining of self.image), copying of large
-			# variables, reduce amount of global variables, and keep
-			# related data together. It is being defined here so that
-			# PhotoImage does not get called before tk has been inititialized.
+
+		# image is a class variable to reduce variable initialization
+		# (the repeated defining of self.image), copying of large
+		# variables, reduce amount of global variables, and keep
+		# related data together. It is being defined here so that
+		# PhotoImage does not get called before tk has been inititialized.
 		if not hasattr(type(self), "image"):
 			image = Image.open(filename)
 			image = image.resize((180, 180))
@@ -381,7 +365,7 @@ class Encounter(object):
 
 	def meet(self, disp="NW"):
 		"""Start the encounter"""
-		
+
 		if isinstance(self, Stairs):
 			dungeon.current_floor.disp.create_image(
 				int(SMW * (p.loc[0] + .5)),
@@ -396,7 +380,7 @@ class Encounter(object):
 
 	def leave(self):
 		gui.navigation_mode()
-	
+
 	@classmethod
 	def reset(cls):
 		del cls.image
@@ -404,9 +388,9 @@ class Encounter(object):
 
 class Empty(Encounter):
 	"""An empty room"""
-	
+
 	image = None
-	
+
 	def __init__(self):
 		pass
 
@@ -419,7 +403,7 @@ class Stairs(Encounter):
 	"""Stairs to another Floor"""
 
 	def __init__(self, location, dist=+1, to=None):
-	
+
 		if not hasattr(type(self), "image"):
 			image = Image.open("dungeon_stairs.png")
 			image = image.resize((180, 240))
@@ -445,18 +429,17 @@ class Stairs(Encounter):
 			}
 
 	def interact(self):
-		
+
 		dungeon.gen_floor(self.location)
-		
+
 		dungeon.floor_num += self.dist
 		p.floor = dungeon.current_floor
 		p.loc = [self.to["x"], self.to["y"]]
-		
+
 		gui.navigation_widgets[0] = dungeon.current_floor.disp
-		
 		gui.navigation_mode()
-		
-		dungeon.current_floor.disp.coords("player", 
+
+		dungeon.current_floor.disp.coords("player",
 			(SMW * p.loc[0],
 			SMH * p.loc[1],
 			SMW * p.loc[0] + SMW,
@@ -466,16 +449,15 @@ class Stairs(Encounter):
 
 	def meet(self, disp="center"):
 		super().meet(disp)
-		
-		gui.screen = "stairs"
 
+		gui.screen = "stairs"
 		gui.clear_screen()
 		gui.cbt_scr.grid(row=0, column=0, columnspan=4)
-		
+
 		gui.inter_btn.grid(row=1, column=1)
 		gui.inter_btn.config(text="Decend" if self.dist > 0 else "Ascend")
 		gui.inter_btn.config(command=self.interact)
-		
+
 		gui.leave_btn.grid(row=1, column=2)
 		# Having a button labeled "Leave" also sounds like going down
 		# the stairs
@@ -488,9 +470,9 @@ class Enemy(Encounter):
 	attacked, and returning loot"""
 
 	def __init__(self, filename="ImageNotFound.png"):
-	
+
 		super().__init__(filename)
-		
+
 		self.alive = True
 		self.max_health = 1
 		self.health = 1
@@ -508,7 +490,7 @@ class Enemy(Encounter):
 
 	def meet(self):
 		"""Format screen for a fight"""
-		
+
 		super().meet()
 
 		gui.screen = "fight"
@@ -620,7 +602,7 @@ class Goblin(Enemy):
 
 	def __init__(self, *args, **kwargs):
 		"""Set stats and loot"""
-		
+
 		if not hasattr(type(self), "image"):
 			# enemy icon stuff
 			image = Image.open("TypicalGoblin.png")
@@ -635,7 +617,7 @@ class Goblin(Enemy):
 		self.loot = {
 			"gold": self.gold_gen()
 		}
-		
+
 		if not rand.randint(0, 2):
 			self.loot["health potion"] = HealthPot()
 
@@ -661,7 +643,7 @@ class Slime(Enemy):
 class Drider(Enemy):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, filename="Drider.png", **kwargs)
-		
+
 		self.max_health = rand.randint(40, 60) + monsters_killed
 		self.health = self.max_health
 		self.damage = rand.randint(20, 30) + monsters_killed // 2
@@ -669,7 +651,7 @@ class Drider(Enemy):
 		self.loot = {
 			"gold": self.gold_gen() + 10
 		}
-		
+
 
 class UsableItem(CollectableItem):
 	"""An item that can be used and consumed on use"""
@@ -824,430 +806,6 @@ class Sword(BuyableItem, EquipableItem):
 			gui.update_stats()
 
 
-class GUI(object):
-	def __init__(self):	
-		
-		self.screen = "navigation"
-		
-		self.master = tk.Tk()
-		
-		# window name
-		self.master.title(string="The Dungeon")
-		self.empty_menu = tk.Menu(self.master)
-		
-		# movement & inventory button creation
-		self.b = [tk.Button(self.master) for i in range(5)]
-
-		# movement button configuation
-		self.b[0].configure(
-			text="North",
-			command=self.movement_factory("north")
-		)
-		self.b[3].configure(
-			text="South",
-			command=self.movement_factory("south")
-		)
-		self.b[1].configure(
-			text="West",
-			command=self.movement_factory("west")
-		)
-		self.b[2].configure(
-			text="East",
-			command=self.movement_factory("east")
-		)
-
-		# button placement
-		self.b[0].grid(row=2, column=1)
-		self.b[1].grid(row=3, column=0)
-		self.b[2].grid(row=3, column=2)
-		self.b[3].grid(row=4, column=1)
-		self.b[4].grid(row=1, column=0)
-
-		# health bar creation
-		self.healthbar = tk.Canvas(self.master, width=100 + 10, height=30)
-		self.healthbar.grid(row=0, column=0, columnspan=3)
-
-		# health bar drawing
-		self.healthbar.create_rectangle(10, 10, 10 + 100, 30)
-
-		self.stats = tk.Message(self.master, text="")
-		self.stats.grid(row=1, column=1, columnspan=2)
-
-		# output text creation
-		self.out = tk.Message(
-			self.master,
-			text="Welcome to The Dungeon. Come once, stay forever!",
-			width=W + 100
-		)
-		self.out.grid(row=5, column=0, columnspan=4)
-
-		self.entry = tk.Entry(self.master)
-		self.entry.grid(row=6, column=1, columnspan=2)
-
-		# top level shop menu
-		self.shop = tk.Menu(self.master)
-		# drop down menu
-		self.stock = tk.Menu(self.shop, tearoff=0)
-		for i in buyable_items:
-			# actual things you can buy
-			self.stock.add_command(
-				label=f"{i.title()}: {str(buyable_items[i]().cost)}",
-				command=buy_item_fact(i)
-			)
-
-		self.shop.add_cascade(menu=self.stock, label="Shop")
-		# add menu to screen
-		self.master.config(menu=self.shop)
-
-		self.restart_button = tk.Button(
-			self.master,
-			text="Restart",
-			command=restart,
-			width=10
-		)
-
-		self.game_over = tk.Canvas(self.master, width=W + 100, height=H)
-		self.game_over.create_rectangle(0, 0, W + 100, H + 50, fill="black")
-		self.game_over.create_text(
-			W/2 + 50,
-			H/2,
-			text="GAME OVER",
-			fill="green",
-			font=font.Font(size=40)
-		)
-		self.game_over.create_window(W, H * 3/4, window=self.restart_button)
-		self.restart_button.lift()
-
-		#  fight screen
-		self.cbt_scr = tk.Canvas(self.master, width=W + 100, height=H)
-
-		self.att_b = tk.Button(self.master, text="Attack", command=attack)
-		self.run_b = tk.Button(self.master, text="Flee", command=flee)
-
-		self.inter_btn = tk.Button(
-			self.master,
-			text="",
-			command=lambda event: cur_room().en.interact()
-		)
-		self.leave_btn = tk.Button(
-			self.master, text="", command=self.leave
-		)
-
-		# collections of widgets
-		self.fight_widgets = [self.cbt_scr, self.att_b, self.run_b]
-		
-		self.other_widgets = [
-			self.b[4],
-			self.entry,
-			self.stats,
-			self.restart_button,
-			self.game_over
-		]
-		self.non_hostile_widgets = [self.inter_btn, self.leave_btn]
-
-		# key bindings
-		self.master.bind("<Up>", self.movement_factory("north"))
-		self.master.bind("<Down>", self.movement_factory("south"))
-		self.master.bind("<Right>", self.movement_factory("east"))
-		self.master.bind("<Left>", self.movement_factory("west"))
-
-		self.master.bind("<Return>", self.enter_key)
-		self.master.bind("<Button 1>", self.mouse_click)
-
-	def player_config(self, p):
-		"""Configure the settings that require the player exist"""
-		
-		self.p = p
-		
-		# inventory button configuration
-		self.b[4].configure(text="Inventory", command=self.p.disp_in)
-		
-		self.healthbar.create_rectangle(
-			10,
-			10,
-			10 + (100 * p.health / p.max_health),
-			30,
-			fill="green",
-			tags="navigation_healthbar"
-		)
-		self.healthbar.create_text(
-			60, 20,
-			text=f"{p.health}/{p.max_health}",
-			tags="navigation_healthbar_text"
-		)
-		
-		self.update_stats()
-	
-	def dungeon_config(self, dungeon):
-		"""Configure settings that require that the dungeon object exist"""
-		
-		self.dungeon = dungeon
-		self.dungeon.current_floor.disp.grid(row=0, column=3, rowspan=5)
-		create_display(self.dungeon.current_floor.disp)
-		self.dungeon.current_floor.disp.bind("<Button 1>", room_info)
-	
-	def __getattr__(self, attr):
-	
-		# Need to make disp in this list always be the disp of the current
-		# floor
-		if attr == "navigation_widgets":
-			return ([
-				self.dungeon.current_floor.disp,
-				self.healthbar,
-				self.out
-				]
-				+ self.b[:-1]
-			)
-		else:
-			raise AttributeError
-	
-	def update_stats(self):
-		"""Update the stats for the player"""
-
-		self.stats.config(
-			text=f"Damage: {self.p.damage}\nDefence: {self.p.defence}"
-		)
-
-	def enter_key(self, event):
-		"""This function triggers when you press the enter key in the
-		entry box. It is to use or equip something in your inventory"""
-
-		data = input_analysis(self.entry.get())
-		item = data["subject"] # name of item
-		# name of item in the player's inventory
-		inv_names = self.p.search_inventory(item)
-
-		# if you dont have any of the possible items and are trying to use or
-		# equip an item
-		if (
-			not any(self.p.inven.get(name, 0) for name in inv_names)
-			and data["command"] in ("equip", "use")
-		):
-			self.out.config(text="You do not have any of that")
-			return
-
-		elif not any(self.p.inven.get(name, 0) for name in inv_names):
-
-			if len(inv_names) == 1:
-				inv_name = inv_names[0]
-
-			# len(inv_names) == 0
-			elif not len(inv_names):
-				self.out.config(text="That item is not equiped")
-				return
-
-			else: # Mys line 1
-				self.out.config(
-					text="More than one item fits that description"
-				)
-				return
-		elif len(inv_names) > 0:
-
-			# If more than one value with at least one in the
-			# inventory, return
-			if sum(1 for name in inv_names if self.p.inven.get(name, 0)) > 1:
-				self.out.config(
-					text="More than one item fits that description"
-				)
-				return
-			else:
-
-				# set inv_name to the one that is in inventory.
-				inv_name = sorted(
-					inv_names, key=lambda n: -self.p.inven.get(n, 0)
-				)[0]
-
-		else:  # empty list default
-			inv_name = item
-
-		# development variable. Will be removed... at some point
-		done = True
-		if data["command"] == "unequip":
-
-			# look for the item in equipment if you are trying to unequip
-			# something
-			inv_names = self.p.search_inventory(item, "equipment")
-			try:
-				self.p.inven[inv_name].unequip()
-			except NotEquipedError:
-				self.out.config(text=f"{inv_name.title()} is not equiped")
-
-		elif data["command"] == "equip":
-
-			# if you can equip the item
-			try:
-				if self.p.inven[inv_name].amount > 0:
-
-					# if you are already wearing equipment in that slot
-					if (occupied_equipment(p.equipment).count(
-						self.p.inven[inv_name].space[0])
-						>= self.p.inven[inv_name].space[1]):
-
-						# if you are only wearing 1 thing in that slot
-						if self.p.inven[inv_name].space[1] == 1:
-
-							for key, val in self.p.equipment.items():
-
-								if val[0] == self.p.inven[inv_name].space :
-									val[2].unequip()
-									self.p.inven[inv_name].equip()
-									return
-
-					self.p.inven[inv_name].equip()
-					# equiping items takes a turn
-					if self.screen == "fight":
-						cur_room().en.attack()
-				else:
-					self.out.config(text="You do not have any of that")
-			except AttributeError:
-				self.out.config(text="That item is not equipable")
-
-		elif data["command"] == "use":
-			try:   # if you can use the item
-				if self.p.inven[inv_name].amount > 0:
-					self.p.inven[inv_name].use()
-					if self.screen == "fight":
-						# using items during a fight uses a turn
-						cur_room().en.attack()
-				else:
-					self.out.config(text="You do not have any of that")
-			except AttributeError:
-				self.out.config(text="That item is not usable")
-
-		else:
-			done = False
-
-		if done:
-			return
-
-		print("should finish")
-
-		if inv_name in self.p.inven:
-			if self.p.inven[inv_name].amount > 0:
-				try:   # if you can use the item
-					self.p.inven[inv_name].use()
-					if self.screen == "fight":
-						cur_room().en.attack()
-				except AttributeError:
-					try:  # if you can equip the item
-						self.p.inven[inv_name].equip()
-						if self.screen == "fight":  # using items takes a turn
-							cur_room().en.attack()
-					except AttributeError:
-						self.out.config(text="That item is not usable")
-			else:
-				self.out.config(text="You do not have any of that")
-		else:
-			self.out.config(text="You do not have any of that")
-
-	def update_healthbar(self):
-		"""Update the appearance of the healthbar in both the fighting screen
-		and the navigation screen"""
-
-		self.cbt_scr.coords(
-			"fight_healthbar",
-			10,
-			H - 30,
-			10 + (100 * self.p.health / self.p.max_health),
-			H - 10
-		)
-		self.cbt_scr.itemconfig(
-			"fight_healthbar_text",
-			text=f"{self.p.health}/{self.p.max_health}"
-		)
-
-		self.healthbar.coords(
-			"navigation_healthbar",
-			10,
-			10,10 + (100 * self.p.health / self.p.max_health),
-			30
-		)
-		self.healthbar.itemconfig(
-			"navigation_healthbar_text",
-			text=f"{self.p.health}/{self.p.max_health}"
-		)			
-
-	def navigation_mode(self):
-		"""Switch to navigation screen"""
-		
-		self.cbt_scr.delete("all")
-		for i in self.fight_widgets + self.non_hostile_widgets:
-			i.grid_remove()
-		for i in self.navigation_widgets:
-			i.grid()
-		self.navigation_widgets[0].grid(row=0, column=3, rowspan=5)
-		self.out.grid(row=5, column=0, columnspan=4)
-		self.b[4].grid(row=1, column=0)
-		self.entry.grid(row=6, column=1, columnspan=2)
-		self.stats.grid(row=1, column=1, columnspan=2)
-		self.master.config(menu=self.shop)
-		self.screen = "navigation"
-		self.healthbar.coords(
-			"navigation_healthbar",
-			10,
-			10,
-			10 + (100 * self.p.health / self.p.max_health),
-			30
-		)
-			
-	def leave(self):
-		if self.screen == "fight":
-			flee()
-		else:
-			self.navigation_mode()
-			self.dungeon.current_floor.disp.create_image(
-				int(SMW * (p.loc[0] + .5)),
-				int(SMH * (p.loc[1] + .5)),
-				image=cur_room().en.icon,
-				anchor="center"
-			)
-
-	def clear_screen(self):
-		"""Remove all widgets"""
-
-		for i in (
-			self.navigation_widgets
-			+ self.fight_widgets
-			+ self.other_widgets
-		):
-			i.grid_remove()
-		self.master.config(menu=self.empty_menu)
-
-	def lose(self):
-		"""Change screen to the game over screen"""
-
-		self.screen = "game over"
-		self.clear_screen()
-		self.game_over.grid(row=0, column=0)
-
-	@staticmethod
-	def mouse_click(event):
-		"""The mouse is clicked in the master window. Used to unfocus from the
-		entry widget"""
-
-		event.widget.focus()
-
-	# factory necessary for tkinter key binding reasons
-	def movement_factory(_self, direction):
-		"""Factory for moveing the character functions"""
-
-		def move_func(self, event=None):
-			"""Move in a direction"""
-			
-			if self.screen == "stairs":
-				self.navigation_mode()
-			
-			if (
-				self.screen != "fight"
-				and self.master.focus_get() is not self.entry
-			):
-				self.p.move(direction)
-		
-		if not hasattr(type(_self), "move_" + direction):
-			setattr(type(_self), "move_" + direction, move_func)
-		return getattr(_self, "move_" + direction)
-
-
 # needed to create different tiers of armor dynamically
 def armor_factory(tier):
 	"""Create armor class with the desired tier"""
@@ -1331,59 +889,6 @@ def occupied_equipment(ment):
 	return total
 
 
-# must be a factory because tkinter does not support passing arguments
-# to the functions it calls
-def buy_item_fact(item_name, amount=1, *args):
-	"""Factory for buying things in the shop"""
-
-	def buy_specific_item():
-		"""Function to buy an item from the shop. Can not take parameters
-		because tkinter does not support that"""
-
-		for i in range(amount):
-			item = buyable_items[item_name](*args)
-
-			if p.inven["gold"].amount >= item.cost:
-				if item_name in p.inven:
-					p.inven[item_name].amount += 1
-				else:
-					p.inven[item_name] = item
-				# passive effect from having it
-				item.effect()
-				if item.plurale:
-					gui.out.config(text="You bought " + item_name)
-				else:
-					gui.out.config(text="You bought a " + item_name)
-				p.inven["gold"] -= item.cost
-				if hasattr(item, "tier"):
-					# replace item in list of buyable items
-					del buyable_items[item_name]
-					new_item_cls = item.factory(item.tier + 1)
-					buyable_items[new_item_cls.name] = new_item_cls
-
-					# replace item in the menu
-					gui.stock.delete(
-						item_name.title()
-						+ ": "
-						+ str(item.cost)
-					)
-					gui.stock.add_command(
-						label=(
-							new_item_cls.name.title()
-							+ ": "
-							+ str(new_item_cls().cost)
-						),
-						command=buy_item_fact(new_item_cls.name)
-					)
-			else:
-				gui.out.config(text="You do not have enough Gold for that")
-	return buy_specific_item
-
-
-_bitems = [Sword, HealthPot, armor_factory(1)]
-buyable_items = {item.name: item for item in _bitems}
-
-
 equipment = {
 	"sword": ("1 hand", 2),
 	"armor": ("body", 1),
@@ -1395,15 +900,6 @@ max_use_body_part = {
 	"body": 1,
 }
 
-def check_all_rooms():
-	"""Check if all rooms have been visited"""
-	
-	for row in dungeon.current_floor:
-		for room in row:
-			if not room.visited:
-				return False
-	return True
-
 
 def cur_room():
 	"""Return the Room object that they player is currently in"""
@@ -1412,10 +908,10 @@ def cur_room():
 	return(room)
 
 
-def attack():
-	"""Attack the enemy"""
+#def attack():
+#	"""Attack the enemy"""
 
-	cur_room().en.be_attacked()
+#	cur_room().en.be_attacked()
 
 
 def flee():
@@ -1471,30 +967,30 @@ def restart():
 	"""Reset all the values of the game and prepare to start over"""
 
 	global dungeon, p, monsters_killed, gui
-	
+
 	gui.master.destroy()
 	del gui
-	
+
 	# reset images for TKimage to work
 	Goblin.reset()
 	Slime.reset()
-	
+
 	gui = GUI()
-	
+	buyable_items = (Sword, HealthPot, armor_factory(1))
+	misc_config(buyable_items, restart)
+
 	del p
 	p = Player()
 	gui.player_config(p)
-	
-	
 
 	del dungeon
 	dungeon = Dungeon()
 	gui.dungeon_config(dungeon)
-	
+
 	dungeon.current_floor.disp.focus()
 
 	monsters_killed = 0
-	
+
 	gui.master.mainloop()
 
 
@@ -1529,8 +1025,11 @@ def create_display(disp):
 
 if __name__ == "__main__":
 	print("\n" * 3)
-	
+
 	gui = GUI()
+	
+	buyable_items = (Sword, HealthPot, armor_factory(1))
+	gui.misc_config(buyable_items, restart)
 
 	p = Player()  # player creation
 
