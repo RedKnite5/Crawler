@@ -6,11 +6,15 @@ __all__ = ["GUI"]
 
 import tkinter as tk
 from tkinter import font
+from re import match
+from random import randint
 
 from config import *
 
 
 class GUI(object):
+	"""The user interface for the game"""
+
 	def __init__(self):
 
 		self.screen = "navigation"
@@ -135,19 +139,19 @@ class GUI(object):
 
 		self.dungeon = dungeon
 		self.dungeon.current_floor.disp.grid(row=0, column=3, rowspan=5)
-		create_display(self.dungeon.current_floor.disp)
-		self.dungeon.current_floor.disp.bind("<Button 1>", room_info)
+		self.dungeon.current_floor.create_display()
+		self.dungeon.current_floor.disp.bind("<Button 1>", self.room_info)
 
 		self.att_b = tk.Button(
 			self.master,
 			text="Attack",
-			command=lambda: cur_room().en.be_attacked())
-		self.run_b = tk.Button(self.master, text="Flee", command=flee)
+			command=lambda: self.cur_room().en.be_attacked())
+		self.run_b = tk.Button(self.master, text="Flee", command=self.flee)
 
 		self.inter_btn = tk.Button(
 			self.master,
 			text="",
-			command=lambda event: cur_room().en.interact()
+			command=lambda event: self.cur_room().en.interact()
 		)
 		
 		# collections of widgets
@@ -207,7 +211,7 @@ class GUI(object):
 		"""This function triggers when you press the enter key in the
 		entry box. It is to use or equip something in your inventory"""
 
-		data = input_analysis(self.entry.get())
+		data = self.input_analysis(self.entry.get())
 		item = data["subject"] # name of item
 		# name of item in the player's inventory
 		inv_names = self.p.search_inventory(item)
@@ -274,7 +278,7 @@ class GUI(object):
 				if self.p.inven[inv_name].amount > 0:
 
 					# if you are already wearing equipment in that slot
-					if (occupied_equipment(p.equipment).count(
+					if (self.p.occupied_equipment().count(
 						self.p.inven[inv_name].space[0])
 						>= self.p.inven[inv_name].space[1]):
 
@@ -291,7 +295,7 @@ class GUI(object):
 					self.p.inven[inv_name].equip()
 					# equiping items takes a turn
 					if self.screen == "fight":
-						cur_room().en.attack()
+						self.cur_room().en.attack()
 				else:
 					self.out.config(text="You do not have any of that")
 			except AttributeError:
@@ -303,7 +307,7 @@ class GUI(object):
 					self.p.inven[inv_name].use()
 					if self.screen == "fight":
 						# using items during a fight uses a turn
-						cur_room().en.attack()
+						self.cur_room().en.attack()
 				else:
 					self.out.config(text="You do not have any of that")
 			except AttributeError:
@@ -322,12 +326,12 @@ class GUI(object):
 				try:   # if you can use the item
 					self.p.inven[inv_name].use()
 					if self.screen == "fight":
-						cur_room().en.attack()
+						self.cur_room().en.attack()
 				except AttributeError:
 					try:  # if you can equip the item
 						self.p.inven[inv_name].equip()
 						if self.screen == "fight":  # using items takes a turn
-							cur_room().en.attack()
+							self.cur_room().en.attack()
 					except AttributeError:
 						self.out.config(text="That item is not usable")
 			else:
@@ -387,7 +391,7 @@ class GUI(object):
 
 	def leave(self):
 		if self.screen == "fight":
-			flee()
+			self.flee()
 		else:
 			self.navigation_mode()
 			self.dungeon.current_floor.disp.create_image(
@@ -453,50 +457,145 @@ class GUI(object):
 			because tkinter does not support that"""
 
 			for i in range(amount):
-				item = buyable_items[item_name](*args)
+				item = self.buyable_items[item_name](*args)
 
 				if self.p.inven["gold"].amount >= item.cost:
-					if item_name in p.inven:
-						p.inven[item_name].amount += 1
+					if item_name in self.p.inven:
+						self.p.inven[item_name].amount += 1
 					else:
-						p.inven[item_name] = item
+						self.p.inven[item_name] = item
 					# passive effect from having it
 					item.effect()
 					if item.plurale:
-						gui.out.config(text="You bought " + item_name)
+						self.out.config(text=f"You bought {item_name}")
 					else:
-						gui.out.config(text="You bought a " + item_name)
-					p.inven["gold"] -= item.cost
+						self.out.config(text=f"You bought a {item_name}")
+					self.p.inven["gold"] -= item.cost
 					if hasattr(item, "tier"):
 						# replace item in list of buyable items
-						del buyable_items[item_name]
+						del self.buyable_items[item_name]
 						new_item_cls = item.factory(item.tier + 1)
-						buyable_items[new_item_cls.name] = new_item_cls
+						self.buyable_items[new_item_cls.name] = new_item_cls
 
 						# replace item in the menu
-						gui.stock.delete(
+						self.stock.delete(
 							item_name.title()
 							+ ": "
 							+ str(item.cost)
 						)
-						gui.stock.add_command(
+						self.stock.add_command(
 							label=(
 								new_item_cls.name.title()
 								+ ": "
 								+ str(new_item_cls().cost)
 							),
-							command=buy_item_fact(new_item_cls.name)
+							command=self.buy_item_fact(new_item_cls.name)
 						)
 				else:
-					gui.out.config(text="You do not have enough Gold for that")
+					self.out.config(
+						text="You do not have enough Gold for that"
+					)
 		return buy_specific_item
-
-
-
-
 
 	def cur_room(self):
 		"""Return the Room object that they player is currently in"""
 
 		room = self.dungeon.current_floor[self.p.loc[0]][self.p.loc[1]]
-		return(room)
+		return room
+		
+	def room_info(self, event):
+		"""Give information about rooms by clicking on them"""
+
+		x, y = event.x, event.y
+		subjects = self.dungeon.current_floor.disp.find_overlapping(
+			x - 1,
+			y - 1,
+			x + 1,
+			y + 1
+		)
+		sub = []
+		for i in subjects:
+			if self.dungeon.current_floor.disp.type(i) == "rectangle":
+				sub.append(i)
+		if len(sub) == 1:
+			tag = (
+				self.
+				dungeon.
+				current_floor.
+				disp.
+				gettags(sub[0])[0].
+				split(",")
+			)
+			clicked_room = (
+				self.
+				dungeon.
+				current_floor[int(tag[0])][int(tag[1])]
+			)
+
+			if int(tag[0]) == p.loc[0] and int(tag[1]) == self.p.loc[1]:
+				self.out.config(text="This is your current location.")
+			elif clicked_room.visited:
+				self.out.config(text=clicked_room.info)
+			else:
+				self.out.config(text="Unknown")
+
+	def flee(self):
+		"""Leave a fight without winning or losing"""
+
+		chance = randint(0, 100)
+		if chance > 50:
+			self.navigation_mode()
+			# create an icon for an enemy the player knows about
+			# if there is a space in the tags tkinter will split it up so
+			# don't add one
+			self.dungeon.current_floor.disp.create_oval(
+				SMW * self.p.loc[0] + SMW / 4,
+				SMH * self.p.loc[1] + SMH / 4,
+				SMW * self.p.loc[0] + SMW * 3/4,
+				SMH * self.p.loc[1] + SMH * 3/4,
+				fill="red",
+				tags=f"enemy{str(self.p.loc[0])},{str(self.p.loc[1])}"
+			)
+			self.out.config(text="You got away.")
+		else:
+			self.cur_room().en.attack()
+			self.out.config(text="You couldn't get away.")
+
+	@staticmethod
+	def input_analysis(s):
+		"""Analyze the input the the text box to find out what the command is"""
+
+		command = general_subject = tier = None
+		item = s.lower().strip()
+
+		commands = ("unequip", "equip", "use")
+
+		for c in commands:
+			if item.startswith(c):
+				command = c
+				subject = item[len(c):].strip()
+				break
+		else:
+			subject = item
+
+		m = match("tier ([0-9]+) ([a-z_][a-z0-9_]*)", item)
+		if m:
+			tier = m.group(1)
+			general_subject = m.group(2)
+
+
+		data = {
+			"command": command,
+			"subject": subject,
+			"general_subject": general_subject,
+			"tier": tier,
+		}
+		return data
+# END
+
+
+
+
+
+
+

@@ -1,8 +1,8 @@
 #!/cygdrive/c/Users/RedKnite/Appdata/local/programs/Python/Python38/python.exe
 
 import random as rand
-import re
 import tkinter as tk
+from re import match
 from functools import total_ordering
 from math import atan, pi
 from math import fabs as abs
@@ -96,13 +96,40 @@ class Floor(object):
 			center_room.init2(dest=upstairs)
 
 		self.disp = tk.Canvas(gui.master, width=W, height=H)
-		create_display(self.disp)
+		self.create_display()
 
 
 	def __getitem__(self, key):
 		"""Index the floor"""
 
 		return self.dun[key]
+
+	def create_display(self):
+		"""Create the map for the player to see"""
+
+		# display creation
+		for i in range(DUN_W):
+			for k in range(DUN_H):
+				# if there is a space in the tags tkinter will split it up
+				# do not add one
+				self.disp.create_rectangle(
+					SMW * i,
+					SMH * k,
+					SMW * i + SMW,
+					SMH * k + SMH,
+					fill="grey",
+					tags=f"{str(i)},{str(k)}"
+				)
+
+		# player icon creation
+		self.disp.create_oval(
+			SMW * p.loc[0],
+			SMH * p.loc[1],
+			SMW * p.loc[0] + SMW,
+			SMH * p.loc[1] + SMH,
+			fill = "green",
+			tags = "player"
+		)
 
 
 class Room(object):
@@ -162,6 +189,7 @@ class Room(object):
 
 	@property
 	def floor(self):
+		"""Return the floor that this room is on"""
 		return dungeon[self.location["floor"]]
 
 	def enter(self):
@@ -178,7 +206,8 @@ class Room(object):
 		gui.out.config(text=self.info)
 		if getattr(self.en, "alive", False):
 			self.en.meet()
-		elif not isinstance(self.en, Enemy): # this isn't good practice
+		# this isn't good practice
+		elif not isinstance(self.en, Enemy):
 			self.en.meet()
 
 
@@ -317,21 +346,34 @@ class Player(object):
 		items = []
 		for i in search.keys():
 			# check if the item is tiered
-			m = re.match(f"tier ([0-9]+) {item}", i)
+			m = match(f"tier ([0-9]+) {item}", i)
 			if m:
 				items.append(f"tier {m.group(1)} {item}")
 		return items
 
+	def occupied_equipment(self):
+		"""Figure out what equipment spaces are used"""
+
+		vals = tuple(self.equipment.values())
+		total = []
+		for i in vals:
+			total += [i[0][0]] * i[1]
+		return total
+
 
 class Encounter(object):
+	"""A base class for enemies and non combat things"""
 
 	def __init__(self, filename="ImageNotFound.png"):
-
-		# image is a class variable to reduce variable initialization
-		# (the repeated defining of self.image), copying of large
-		# variables, reduce amount of global variables, and keep
-		# related data together. It is being defined here so that
-		# PhotoImage does not get called before tk has been inititialized.
+		"""Create the image variable
+		
+		image is a class variable to reduce variable initialization
+		(the repeated defining of self.image), copying of large
+		variables, reduce amount of global variables, and keep
+		related data together. It is being defined here so that
+		PhotoImage does not get called before tk has been inititialized.
+		"""
+		
 		if not hasattr(type(self), "image"):
 			image = Image.open(filename)
 			image = image.resize((180, 180))
@@ -383,7 +425,8 @@ class Encounter(object):
 
 	@classmethod
 	def reset(cls):
-		del cls.image
+		if hasattr(cls, "image"):
+			del cls.image
 
 
 class Empty(Encounter):
@@ -429,6 +472,7 @@ class Stairs(Encounter):
 			}
 
 	def interact(self):
+		"""Go up or down the stairs"""
 
 		dungeon.gen_floor(self.location)
 
@@ -448,6 +492,8 @@ class Stairs(Encounter):
 
 
 	def meet(self, disp="center"):
+		"""Dislpay the stairs image"""
+		
 		super().meet(disp)
 
 		gui.screen = "stairs"
@@ -485,6 +531,8 @@ class Enemy(Encounter):
 
 
 	def gold_gen(self):
+		"""Determine how much gold the enemy will drop"""
+		
 		return Gold(amount=self.max_health // 3 + self.damage // 2 + 2)
 
 
@@ -641,6 +689,7 @@ class Slime(Enemy):
 
 
 class Drider(Enemy):
+	"""A enemy with medium health, but high attack and it can poison you"""
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, filename="Drider.png", **kwargs)
 
@@ -685,7 +734,7 @@ class EquipableItem(CollectableItem):
 		"""Equip the item"""
 
 		if (
-			occupied_equipment(p.equipment).count(self.space[0])
+			p.occupied_equipment().count(self.space[0])
 			>= self.space[1]
 		):
 			gui.out.config(
@@ -697,7 +746,7 @@ class EquipableItem(CollectableItem):
 			# should rework how inventory interacts with equipment
 			p.inven[self.name] -= 1
 
-			if self.space[0] not in occupied_equipment(p.equipment):
+			if self.space[0] not in p.occupied_equipment():
 				p.equipment[self.name] = [self.space, 1, self]
 			else:
 				p.equipment[self.name][1] += 1
@@ -848,47 +897,6 @@ def armor_factory(tier):
 	return Armor  # return the class from the factory
 
 
-def input_analysis(s):
-	"""Analyze the input the the text box to find out what the command is"""
-
-	command = general_subject = tier = None
-	item = s.lower().strip()
-
-	commands = ("unequip", "equip", "use")
-
-	for c in commands:
-		if item.startswith(c):
-			command = c
-			subject = item[len(c):].strip()
-			break
-	else:
-		subject = item
-
-	m = re.match("tier ([0-9]+) ([a-z_][a-z0-9_]*)", item)
-	if m:
-		tier = m.group(1)
-		general_subject = m.group(2)
-
-
-	data = {
-		"command": command,
-		"subject": subject,
-		"general_subject": general_subject,
-		"tier": tier,
-	}
-	return data
-
-
-def occupied_equipment(ment):
-	"""Figure out what equipment spaces are used"""
-
-	vals = tuple(ment.values())
-	total = []
-	for i in vals:
-		total += [i[0][0]] * i[1]
-	return total
-
-
 equipment = {
 	"sword": ("1 hand", 2),
 	"armor": ("body", 1),
@@ -914,55 +922,6 @@ def cur_room():
 #	cur_room().en.be_attacked()
 
 
-def flee():
-	"""Leave a fight without winning or losing"""
-
-	chance = rand.randint(0, 100)
-	if chance > 50:
-		gui.navigation_mode()
-		# create an icon for an enemy the player knows about
-		# if there is a space in the tags tkinter will split it up so
-		# don't add one
-		dungeon.current_floor.disp.create_oval(
-			SMW * p.loc[0] + SMW / 4,
-			SMH * p.loc[1] + SMH / 4,
-			SMW * p.loc[0] + SMW * 3/4,
-			SMH * p.loc[1] + SMH * 3/4,
-			fill="red",
-			tags=f"enemy{str(p.loc[0])},{str(p.loc[1])}"
-		)
-		gui.out.config(text="You got away.")
-	else:
-		cur_room().en.attack()
-		gui.out.config(text="You couldn't get away.")
-
-
-def room_info(event):
-	"""Give information about rooms by clicking on them"""
-
-	x, y = event.x, event.y
-	subjects = dungeon.current_floor.disp.find_overlapping(
-		x - 1,
-		y - 1,
-		x + 1,
-		y + 1
-	)
-	sub = []
-	for i in subjects:
-		if dungeon.current_floor.disp.type(i) == "rectangle":
-			sub.append(i)
-	if len(sub) == 1:
-		tag = dungeon.current_floor.disp.gettags(sub[0])[0].split(",")
-		clicked_room = dungeon.current_floor[int(tag[0])][int(tag[1])]
-
-		if int(tag[0]) == p.loc[0] and int(tag[1]) == p.loc[1]:
-			out.config(text="This is your current location.")
-		elif clicked_room.visited:
-			out.config(text=clicked_room.info)
-		else:
-			out.config(text="Unknown")
-
-
 def restart():
 	"""Reset all the values of the game and prepare to start over"""
 
@@ -977,7 +936,7 @@ def restart():
 
 	gui = GUI()
 	buyable_items = (Sword, HealthPot, armor_factory(1))
-	misc_config(buyable_items, restart)
+	gui.misc_config(buyable_items, restart)
 
 	del p
 	p = Player()
@@ -992,34 +951,6 @@ def restart():
 	monsters_killed = 0
 
 	gui.master.mainloop()
-
-
-def create_display(disp):
-	"""Create the map for the player to see"""
-
-	# display creation
-	for i in range(DUN_W):
-		for k in range(DUN_H):
-			# if there is a space in the tags tkinter will split it up
-			# do not add one
-			disp.create_rectangle(
-				SMW * i,
-				SMH * k,
-				SMW * i + SMW,
-				SMH * k + SMH,
-				fill="grey",
-				tags=f"{str(i)},{str(k)}"
-			)
-
-	# player icon creation
-	disp.create_oval(
-		SMW * p.loc[0],
-		SMH * p.loc[1],
-		SMW * p.loc[0] + SMW,
-		SMH * p.loc[1] + SMH,
-		fill = "green",
-		tags = "player"
-	)
 
 
 

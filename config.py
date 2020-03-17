@@ -40,8 +40,8 @@ STARTING_GOLD = 300
 # the amount that distance from the center makes enemies stronger
 DISTANCE_DIFF = 70
 DEFAULT_MAX_HEALTH = 100
-DEFAULT_DAMAGE = 1000
-DEFAULT_DEFENCE = 1000
+DEFAULT_DAMAGE = 10
+DEFAULT_DEFENCE = 0
 # the amount of a health potion heals
 HEAL_POT_VAL = 50
 # the amount of health a slime heart gives
