@@ -159,6 +159,9 @@ class GUI(object):
 		self.non_hostile_widgets = [self.inter_btn, self.leave_btn]
 	
 	def misc_config(self, items, restart):
+		"""Configure settings that require buyable_items or the restart
+		function
+		"""
 		self.buyable_items = {item.name: item for item in items}
 		
 		for i in self.buyable_items:
