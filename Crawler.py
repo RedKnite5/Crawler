@@ -24,7 +24,6 @@ from config import *
 	#    the inventory, just puts a marker by it.
 
 
-
 monsters_killed = 0
 
 
@@ -916,12 +915,6 @@ def cur_room():
 	return(room)
 
 
-#def attack():
-#	"""Attack the enemy"""
-
-#	cur_room().en.be_attacked()
-
-
 def restart():
 	"""Reset all the values of the game and prepare to start over"""
 
@@ -951,7 +944,6 @@ def restart():
 	monsters_killed = 0
 
 	gui.master.mainloop()
-
 
 
 if __name__ == "__main__":

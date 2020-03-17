@@ -446,7 +446,6 @@ class GUI(object):
 			setattr(type(_self), "move_{direction}", move_func)
 		return getattr(_self, "move_{direction}")
 
-
 	# must be a factory because tkinter does not support passing arguments
 	# to the functions it calls
 	def buy_item_fact(self, item_name, amount=1, *args):
