@@ -5,7 +5,6 @@ import tkinter as tk
 from re import match
 from functools import total_ordering
 from math import atan, pi
-from math import fabs as abs
 
 from PIL import Image
 from PIL import ImageOps
@@ -16,22 +15,23 @@ from config import *
 
 #   python Crawler.py
 
-# ToDo:
-	# 1) If you equip and unequip a sword, further attempts to unequip will
-	#    not produce any message.
-	# 2) Rewrite the enter method of GUI
-	# 3) Change how equiping stuff works so that it doesn't remove it from
-	#    the inventory, just puts a marker by it.
+# ToDo: If you equip and unequip a sword, further attempts to unequip will
+#       not produce any message.
+# ToDo: Rewrite the enter method of GUI
+# ToDo: Change how equiping stuff works so that it doesn't remove it from
+#       the inventory, just puts a marker by it.
 
 
 monsters_killed = 0
 
 
 class ItemNotFoundError(ValueError):
+	"""An item was not found when in an inventory when it should have been."""
 	pass
 
 
 class NotEquipedError(RuntimeError):
+	"""Equipment that was not equiped was unequiped"""
 	pass
 
 
@@ -75,17 +75,17 @@ class Floor(object):
 
 		self.floor_num = floor
 		self.dun = []
-		for i in range(DUN_W): # map generation
+		for i in range(DUN_W):  # map generation
 			column = []
 			for k in range(DUN_H):
 				column.append(Room(int(
-					(abs(i - int((DUN_W - 1) / 2))
-					+ abs(k - int((DUN_H - 1) / 2))) * 1.5
+					(abs(i - (DUN_W - 1) // 2)
+					 + abs(k - (DUN_H - 1) // 2)) * 1.5
 					* DISTANCE_DIFF + 150 * self.floor_num),
 					{"x": i, "y": k, "floor": self.floor_num}))
 			self.dun.append(column)
 
-		center_room = self.dun[int((DUN_W - 1) / 2)][int((DUN_H - 1) / 2)]
+		center_room = self.dun[(DUN_W - 1) // 2][(DUN_H - 1) // 2]
 
 		if self.floor_num == 0:
 			center_room.type = STARTING_ROOM_TYPE
@@ -96,7 +96,6 @@ class Floor(object):
 
 		self.disp = tk.Canvas(gui.master, width=W, height=H)
 		self.create_display()
-
 
 	def __getitem__(self, key):
 		"""Index the floor"""
@@ -126,8 +125,8 @@ class Floor(object):
 			SMH * p.loc[1],
 			SMW * p.loc[0] + SMW,
 			SMH * p.loc[1] + SMH,
-			fill = "green",
-			tags = "player"
+			fill="green",
+			tags="player"
 		)
 
 
@@ -223,8 +222,8 @@ class CollectableItem(object):
 	def __str__(self):
 		return self.name
 
-	 # math ops are here to allow manipulation of the
-	 # amounts without too much extra work
+	# math ops are here to allow manipulation of the
+	# amounts without too much extra work
 	def __add__(self, other):
 		if isinstance(other, type(self)):
 			return type(self)(self.amount + other.amount)
@@ -264,7 +263,8 @@ class CollectableItem(object):
 class Gold(CollectableItem):
 	"""Collectable currency"""
 
-	def __init__(self, *args, amount=0,  **kwargs):
+	def __init__(self, *args, amount=0, **kwargs):
+		# noinspection PyArgumentList
 		super().__init__(amount, *args, **kwargs)
 		self.name = "gold"
 
@@ -276,7 +276,7 @@ class Player(object):
 		"""Setting stats and variables"""
 
 		self.race = race
-		self.loc = [int((DUN_W - 1) / 2), int((DUN_H - 1) / 2)]
+		self.loc = [(DUN_W - 1) // 2, (DUN_H - 1) // 2]
 		self.floor = None
 		self.max_health = DEFAULT_MAX_HEALTH
 		self.health = self.max_health
@@ -288,7 +288,7 @@ class Player(object):
 		self.equipment = {}
 		self.status = None
 
-	def move(self, dir):
+	def move(self, direction):
 		"""Player movement on map function"""
 
 		# this is mostly redundent except for the starting room
@@ -297,18 +297,23 @@ class Player(object):
 		# do not add one
 		dungeon.current_floor.disp.itemconfig(
 			f"{str(self.loc[0])},{str(self.loc[1])}",
-			fill="yellow")
+			fill="yellow"
+		)
 
-		if dir == "north" and self.loc[1] > 0:   # up
+		# up
+		if direction == "north" and self.loc[1] > 0:
 			self.loc[1] -= 1
 			dungeon.current_floor.disp.move("player", 0, -1 * SMH)
-		elif dir == "south" and self.loc[1] < DUN_H-1:  # down
+		# down
+		elif direction == "south" and self.loc[1] < DUN_H - 1:
 			self.loc[1] += 1
 			dungeon.current_floor.disp.move("player", 0, SMH)
-		elif dir == "west" and self.loc[0] > 0:  # left
+		# left
+		elif direction == "west" and self.loc[0] > 0:
 			self.loc[0] -= 1
 			dungeon.current_floor.disp.move("player", -1 * SMW, 0)
-		elif dir == "east" and self.loc[0] < DUN_W-1:  # right
+		# right
+		elif direction == "east" and self.loc[0] < DUN_W - 1:
 			self.loc[0] += 1
 			dungeon.current_floor.disp.move("player", SMW, 0)
 
@@ -318,7 +323,8 @@ class Player(object):
 		# if there is a space in the tags tkinter will split it up
 		dungeon.current_floor.disp.itemconfig(
 			f"{str(self.loc[0])},{str(self.loc[1])}",
-			fill="yellow")
+			fill="yellow"
+		)
 
 	def disp_in(self):
 		"""Display the player's inventory"""
@@ -345,8 +351,7 @@ class Player(object):
 		items = []
 		for i in search.keys():
 			# check if the item is tiered
-			m = match(f"tier ([0-9]+) {item}", i)
-			if m:
+			if m := match(f"tier ([0-9]+) {item}", i):
 				items.append(f"tier {m.group(1)} {item}")
 		return items
 
@@ -370,9 +375,9 @@ class Encounter(object):
 		(the repeated defining of self.image), copying of large
 		variables, reduce amount of global variables, and keep
 		related data together. It is being defined here so that
-		PhotoImage does not get called before tk has been inititialized.
+		PhotoImage does not get called before tk has been initialised.
 		"""
-		
+
 		if not hasattr(type(self), "image"):
 			image = Image.open(filename)
 			image = image.resize((180, 180))
@@ -403,7 +408,6 @@ class Encounter(object):
 					anchor="center"
 				)
 
-
 	def meet(self, disp="NW"):
 		"""Start the encounter"""
 
@@ -419,7 +423,8 @@ class Encounter(object):
 		gui.cbt_scr.delete("all")
 		self.show_ico(place=disp)
 
-	def leave(self):
+	@staticmethod
+	def leave():
 		gui.navigation_mode()
 
 	@classmethod
@@ -433,9 +438,11 @@ class Empty(Encounter):
 
 	image = None
 
+	# noinspection PyMissingConstructor
 	def __init__(self):
 		pass
 
+	# noinspection PyMethodOverriding
 	def meet(self):
 		super().meet()
 		self.leave()
@@ -444,6 +451,7 @@ class Empty(Encounter):
 class Stairs(Encounter):
 	"""Stairs to another Floor"""
 
+	# noinspection PyMissingConstructor
 	def __init__(self, location, dist=+1, to=None):
 
 		if not hasattr(type(self), "image"):
@@ -454,7 +462,7 @@ class Stairs(Encounter):
 			# icon of stairs
 			icon = Image.open("stairs_icon.png")
 			icon = ImageOps.mirror(
-				icon.resize((int(SMW / 2), int(SMH / 2)))
+				icon.resize((SMW // 2, SMH // 2))
 			)
 			type(self).icon = ImageTk.PhotoImage(icon)
 
@@ -466,8 +474,8 @@ class Stairs(Encounter):
 		else:
 			self.to = {
 				"floor": self.location["floor"] + self.dist,
-				"x": int((DUN_W - 1) / 2),
-				"y": int((DUN_H - 1) / 2)
+				"x": (DUN_W - 1) // 2,
+				"y": (DUN_H - 1) // 2
 			}
 
 	def interact(self):
@@ -484,15 +492,14 @@ class Stairs(Encounter):
 
 		dungeon.current_floor.disp.coords("player",
 			(SMW * p.loc[0],
-			SMH * p.loc[1],
-			SMW * p.loc[0] + SMW,
-			SMH * p.loc[1] +SMH)
+			 SMH * p.loc[1],
+			 SMW * p.loc[0] + SMW,
+			 SMH * p.loc[1] + SMH)
 		)
-
 
 	def meet(self, disp="center"):
 		"""Dislpay the stairs image"""
-		
+
 		super().meet(disp)
 
 		gui.screen = "stairs"
@@ -528,13 +535,12 @@ class Enemy(Encounter):
 			"undefined_collectable_item": CollectableItem()
 		}
 
-
 	def gold_gen(self):
 		"""Determine how much gold the enemy will drop"""
-		
+
 		return Gold(amount=self.max_health // 3 + self.damage // 2 + 2)
 
-
+	# noinspection PyMethodOverriding
 	def meet(self):
 		"""Format screen for a fight"""
 
@@ -592,7 +598,7 @@ class Enemy(Encounter):
 	def attack(self):
 		"""Attack the player"""
 
-		damage_delt = 0     # defence function ↓↓↓
+		damage_delt = 0  # defence function ↓↓↓
 		damage_delt = round(
 			self.damage * (1 - 2 * atan(p.defence / 20) / pi)
 		)
@@ -675,6 +681,7 @@ class Slime(Enemy):
 	def __init__(self, *args, **kwargs):
 		"""Set stats and loot"""
 
+		# noinspection PyArgumentList,PyArgumentList
 		super().__init__(*args, filename="SlimeMonster.png", **kwargs)
 		self.max_health = rand.randint(50, 70) + (3 * monsters_killed) // 2
 		self.health = self.max_health
@@ -689,7 +696,9 @@ class Slime(Enemy):
 
 class Drider(Enemy):
 	"""A enemy with medium health, but high attack and it can poison you"""
+
 	def __init__(self, *args, **kwargs):
+		# noinspection PyArgumentList,PyArgumentList
 		super().__init__(*args, filename="Drider.png", **kwargs)
 
 		self.max_health = rand.randint(40, 60) + monsters_killed
@@ -733,8 +742,8 @@ class EquipableItem(CollectableItem):
 		"""Equip the item"""
 
 		if (
-			p.occupied_equipment().count(self.space[0])
-			>= self.space[1]
+				p.occupied_equipment().count(self.space[0])
+				>= self.space[1]
 		):
 			gui.out.config(
 				text=f"You can not equip more than {self.space[1]} of this"
@@ -821,6 +830,7 @@ class SlimeHeart(UsableItem):
 
 		gui.update_healthbar()
 
+
 # sword in shop
 class Sword(BuyableItem, EquipableItem):
 	"""A basic weapon"""
@@ -858,6 +868,7 @@ class Sword(BuyableItem, EquipableItem):
 def armor_factory(tier):
 	"""Create armor class with the desired tier"""
 
+
 	class Armor(BuyableItem, EquipableItem):
 		"""Armor class that gives defence"""
 
@@ -893,6 +904,7 @@ def armor_factory(tier):
 				self.unequiped = False  # reset this variable
 				gui.update_stats()
 
+
 	return Armor  # return the class from the factory
 
 
@@ -912,7 +924,7 @@ def cur_room():
 	"""Return the Room object that they player is currently in"""
 
 	room = dungeon.current_floor[p.loc[0]][p.loc[1]]
-	return(room)
+	return room
 
 
 def restart():
@@ -950,7 +962,7 @@ if __name__ == "__main__":
 	print("\n" * 3)
 
 	gui = GUI()
-	
+
 	buyable_items = (Sword, HealthPot, armor_factory(1))
 	gui.misc_config(buyable_items, restart)
 
@@ -960,12 +972,7 @@ if __name__ == "__main__":
 
 	dungeon = Dungeon()
 	gui.dungeon_config(dungeon)
-	
-	dungeon.current_floor
 
 	p.floor = dungeon.current_floor
-	
+
 	gui.master.mainloop()
-	
-
-

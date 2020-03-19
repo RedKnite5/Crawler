@@ -78,7 +78,6 @@ class GUI(object):
 		self.shop = tk.Menu(self.master)
 		# drop down menu
 		self.stock = tk.Menu(self.shop, tearoff=0)
-		
 
 		self.shop.add_cascade(menu=self.stock, label="Shop")
 		# add menu to screen
@@ -215,7 +214,8 @@ class GUI(object):
 		entry box. It is to use or equip something in your inventory"""
 
 		data = self.input_analysis(self.entry.get())
-		item = data["subject"] # name of item
+		# name of item
+		item = data["subject"]
 		# name of item in the player's inventory
 		inv_names = self.p.search_inventory(item)
 
@@ -227,18 +227,19 @@ class GUI(object):
 		):
 			self.out.config(text="You do not have any of that")
 			return
-
+		# you are either unequiping the item or have not specified a command
 		elif not any(self.p.inven.get(name, 0) for name in inv_names):
 
 			if len(inv_names) == 1:
 				inv_name = inv_names[0]
-
-			# len(inv_names) == 0
-			elif not len(inv_names):
-				self.out.config(text="That item is not equiped")
+			# the item was not found in your inventory
+			elif not inv_names:
+				self.out.config(
+					text="That item is not in your inventory and "
+					"is not equiped"
+				)
 				return
-
-			else: # Mys line 1
+			else:
 				self.out.config(
 					text="More than one item fits that description"
 				)
@@ -290,7 +291,7 @@ class GUI(object):
 
 							for key, val in self.p.equipment.items():
 
-								if val[0] == self.p.inven[inv_name].space :
+								if val[0] == self.p.inven[inv_name].space:
 									val[2].unequip()
 									self.p.inven[inv_name].equip()
 									return
@@ -361,7 +362,8 @@ class GUI(object):
 		self.healthbar.coords(
 			"navigation_healthbar",
 			10,
-			10,10 + (100 * self.p.health / self.p.max_health),
+			10,
+			10 + (100 * self.p.health / self.p.max_health),
 			30
 		)
 		self.healthbar.itemconfig(
@@ -430,6 +432,7 @@ class GUI(object):
 		event.widget.focus()
 
 	# factory necessary for tkinter key binding reasons
+	# noinspection PyMethodParameters
 	def movement_factory(_self, direction):
 		"""Factory for moveing the character functions"""
 
@@ -580,10 +583,12 @@ class GUI(object):
 		else:
 			subject = item
 
-		m = match("tier ([0-9]+) ([a-z_][a-z0-9_]*)", item)
-		if m:
+		#m = match("tier ([0-9]+) ([a-z_][a-z0-9_]*)", subject)
+		if m := match("tier ([0-9]+) ([a-z_][a-z0-9_]*)", subject):
 			tier = m.group(1)
 			general_subject = m.group(2)
+		else:
+			general_subject = subject
 
 
 		data = {
