@@ -9,6 +9,7 @@ from tkinter import font
 from re import match
 from random import randint
 
+from errors import *
 from config import *
 
 
@@ -219,6 +220,43 @@ class GUI(object):
 		# name of item in the player's inventory
 		inv_names = self.p.search_inventory(item)
 
+
+		if data["command"] is None:
+			# Trying to equip or use
+			if any(self.p.inven.get(name, 0) for name in inv_names):
+				if hasattr(item, "use"):
+					data["command"] = "use"
+				elif hasattr(item, "equip"):
+					data["command"] = "equip"
+			elif any(self.p.search_inventory(item, "equipment")):
+				if (self.p.occupied_equipment().count(item.space[0])
+					>= item.space[1]):
+					data["command"] = "unequip"
+
+		if data["command"] == "use":
+			try:   # if you can use the item
+				self.p.inven[inv_name].use()
+				if self.screen == "fight":
+					# using items during a fight uses a turn
+					self.cur_room().en.attack()
+			except AttributeError:
+				self.out.config(text="That item is not usable")
+			except UseItemWithZeroError as e:
+				self.out.config(text=e.args[0])
+
+			return
+
+		if data["command"] == "equip":
+			# if you can equip the item
+			try:
+				self.p.inven[inv_name].equip()
+			except AttributeError:
+				self.out.config(text="That item is not equipable")
+			
+			return
+
+
+
 		# if you dont have any of the possible items and are trying to use or
 		# equip an item
 		if (
@@ -228,7 +266,7 @@ class GUI(object):
 			self.out.config(text="You do not have any of that")
 			return
 		# you are either unequiping the item or have not specified a command
-		elif not any(self.p.inven.get(name, 0) for name in inv_names):
+		if not any(self.p.inven.get(name, 0) for name in inv_names):
 
 			if len(inv_names) == 1:
 				inv_name = inv_names[0]

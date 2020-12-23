@@ -1,4 +1,6 @@
 
+"""Configuration file for constants"""
+
 __all__ = [
 	"ENEMIES",
 	"DUN_W",

@@ -3,3 +3,7 @@ nppBackup
 venv
 .idea
 .ropeproject
+crawl.code-workspace
+Crawler.srctrlbm
+Crawler.srctrldb
+Crawler.srctrlprj

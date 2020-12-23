@@ -1,5 +1,7 @@
 #!/cygdrive/c/Users/RedKnite/Appdata/local/programs/Python/Python38/python.exe
 
+"""The main Crawler game"""
+
 import random as rand
 import tkinter as tk
 from re import match
@@ -11,28 +13,18 @@ from PIL import ImageOps
 from PIL import ImageTk
 
 from GUI import GUI
+from errors import *
 from config import *
 
 #   python Crawler.py
 
 # ToDo: If you equip and unequip a sword, further attempts to unequip will
 #       not produce any message.
-# ToDo: Rewrite the enter method of GUI
 # ToDo: Change how equiping stuff works so that it doesn't remove it from
 #       the inventory, just puts a marker by it.
 
 
 monsters_killed = 0
-
-
-class ItemNotFoundError(ValueError):
-	"""An item was not found when in an inventory when it should have been."""
-	pass
-
-
-class NotEquipedError(RuntimeError):
-	"""Equipment that was not equiped was unequiped"""
-	pass
 
 
 class Dungeon(object):
@@ -720,6 +712,9 @@ class UsableItem(CollectableItem):
 	def use(self):
 		"""Use the item for what ever purpose it has"""
 
+		if self.p.inven[inv_name].amount <= 0:
+			raise UseItemWithZeroError(f"You have 0 {inv_name}s")
+
 		gui.out.config(text="Used " + self.name.title())
 
 		# should later change how consumable things work
@@ -745,9 +740,11 @@ class EquipableItem(CollectableItem):
 				p.occupied_equipment().count(self.space[0])
 				>= self.space[1]
 		):
+
 			gui.out.config(
 				text=f"You can not equip more than {self.space[1]} of this"
 			)
+			raise EquipmentFullError(f"You can not equip more than {self.space[1]} of this")
 		else:
 			self.equiped = True
 			gui.out.config(text=f"You equip the {self.name}")
