@@ -1,6 +1,6 @@
 __pycache__
 nppBackup
-venv
+venv/*
 .idea
 .ropeproject
 crawl.code-workspace
