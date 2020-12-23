@@ -440,7 +440,7 @@ class GUI(object):
 			self.dungeon.current_floor.disp.create_image(
 				int(SMW * (p.loc[0] + .5)),
 				int(SMH * (p.loc[1] + .5)),
-				image=cur_room().en.icon,
+				image=self.cur_room().en.icon,
 				anchor="center"
 			)
 
