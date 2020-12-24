@@ -21,13 +21,17 @@ class GUI(object):
 		self.screen = "navigation"
 
 		self.master = tk.Tk()
+		
+		self.nav_frame = tk.Frame(self.master)
+		self.inv_frame = tk.Frame(self.master)
+		self.battle_frame = tk.Frame(self.master)
 
 		# window name
 		self.master.title(string="The Dungeon")
 		self.empty_menu = tk.Menu(self.master)
 
 		# movement & inventory button creation
-		self.b = [tk.Button(self.master) for i in range(5)]
+		self.b = [tk.Button(self.nav_frame) for i in range(5)]
 
 		# movement button configuation
 		self.b[0].configure(
@@ -55,7 +59,7 @@ class GUI(object):
 		self.b[4].grid(row=1, column=0)
 
 		# health bar creation
-		self.healthbar = tk.Canvas(self.master, width=100 + 10, height=30)
+		self.healthbar = tk.Canvas(self.battle_frame, width=100 + 10, height=30)
 		self.healthbar.grid(row=0, column=0, columnspan=3)
 
 		# health bar drawing
