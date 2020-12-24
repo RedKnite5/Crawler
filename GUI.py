@@ -24,7 +24,7 @@ class GUI(object):
 		
 		self.nav_frame = tk.Frame(self.master)
 		self.inv_frame = tk.Frame(self.master)
-		self.battle_frame = tk.Frame(self.master)
+		self.bat_frame = tk.Frame(self.master)
 
 		# window name
 		self.master.title(string="The Dungeon")
@@ -59,14 +59,17 @@ class GUI(object):
 		self.b[4].grid(row=1, column=0)
 
 		# health bar creation
-		self.healthbar = tk.Canvas(self.battle_frame, width=100 + 10, height=30)
+		self.healthbar = tk.Canvas(self.bat_frame, width=100 + 10, height=30)
 		self.healthbar.grid(row=0, column=0, columnspan=3)
 
 		# health bar drawing
 		self.healthbar.create_rectangle(10, 10, 10 + 100, 30)
 
-		self.stats = tk.Message(self.master, text="")
-		self.stats.grid(row=1, column=1, columnspan=2)
+		self.nav_stats = tk.Message(self.nav_frame, text="")
+		self.nav_stats.grid(row=1, column=1, columnspan=2)
+		
+		self.bat_stats = tk.Message(self.bat_frame, text="")
+		self.stats.grid(row=1, column=3)
 
 		# output text creation
 		self.out = tk.Message(
