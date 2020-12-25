@@ -124,6 +124,7 @@ class GUI(object):
 			fill="green",
 			font=font.Font(size=40)
 		)
+		self.game_over.grid()
 
 		#  fight screen
 		self.cbt_scr = tk.Canvas(self.bat_frame, width=W + 100, height=H)
@@ -471,12 +472,17 @@ class GUI(object):
 	def clear_screen(self):
 		"""Remove all widgets"""
 
+		'''
 		for i in (
 			self.navigation_widgets
 			+ self.fight_widgets
 			+ self.other_widgets
 		):
 			i.grid_remove()
+		'''
+		self.nav_frame.grid_remove()
+		self.bat_frame.grid_remove()
+		self.inv_frame.grid_remove()
 		self.master.config(menu=self.empty_menu)
 
 	def lose(self):
@@ -484,7 +490,7 @@ class GUI(object):
 
 		self.screen = "game over"
 		self.clear_screen()
-		self.game_over.grid(row=0, column=0)
+		self.game_over_frame.grid(row=0, column=0)
 
 	@staticmethod
 	def mouse_click(event):
