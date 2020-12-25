@@ -86,7 +86,7 @@ class Floor(object):
 			center_room.type = UP_STAIRS_TYPE
 			center_room.init2(dest=upstairs)
 
-		self.disp = tk.Canvas(gui.master, width=W, height=H)
+		self.disp = tk.Canvas(gui.nav_frame, width=W, height=H)
 		self.create_display()
 
 	def __getitem__(self, key):
@@ -153,7 +153,6 @@ class Room(object):
 		else:
 			self.info = "This is an empty room"
 			self.en = Empty()
-
 		if self.type > NON_VIOLENT_ENC_CUTOFF:
 			self.info = f"This is a room with a {self.en.name}"
 
@@ -539,14 +538,17 @@ class Enemy(Encounter):
 		super().meet()
 
 		gui.screen = "fight"
-		gui.clear_screen()
-		gui.cbt_scr.grid(row=0, column=0, columnspan=3)
-		gui.att_b.grid(row=1, column=0)
-		gui.b[4].grid(row=1, column=1)
-		gui.stats.grid(row=1, column=3)
-		gui.run_b.grid(row=1, column=2)
-		gui.out.grid(row=2, column=0, columnspan=3)
-		gui.entry.grid(row=3, column=0, columnspan=3)
+		gui.nav_frame.grid_remove()
+		gui.bat_frame.grid(row=0, column=0)
+		
+		#gui.clear_screen()
+		#gui.cbt_scr.grid(row=0, column=0, columnspan=3)
+		#gui.att_b.grid(row=1, column=0)
+		#gui.b[4].grid(row=1, column=1)
+		#gui.stats.grid(row=1, column=3)
+		#gui.run_b.grid(row=1, column=2)
+		#gui.out.grid(row=2, column=0, columnspan=3)
+		#gui.entry.grid(row=3, column=0, columnspan=3)
 
 		self.fight()
 

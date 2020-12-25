@@ -13,6 +13,21 @@ from errors import *
 from config import *
 
 
+class MultiframeWidget(object):
+	def __init__(self, frames, widget, *args, **kwargs):
+		self.widgets = {}
+		for name, frame in frames.items():
+			self.widgets[name] = widget(frame, *args, **kwargs)
+
+	def __getattr__(self, name):
+		def f(*args, **kwargs):
+			ret = []
+			for widget in self.widgets.values():
+				ret.append(getattr(widget, name)(*args, **kwargs))
+			return ret
+		return f
+		
+
 class GUI(object):
 	"""The user interface for the game"""
 
@@ -25,6 +40,9 @@ class GUI(object):
 		self.nav_frame = tk.Frame(self.master)
 		self.inv_frame = tk.Frame(self.master)
 		self.bat_frame = tk.Frame(self.master)
+		self.game_over_frame = tk.Frame(self.master)
+		
+		self.nav_frame.grid(row=0, column=0)
 
 		# window name
 		self.master.title(string="The Dungeon")
@@ -57,30 +75,36 @@ class GUI(object):
 		self.b[2].grid(row=3, column=2)
 		self.b[3].grid(row=4, column=1)
 		self.b[4].grid(row=1, column=0)
-
+		
 		# health bar creation
-		self.healthbar = tk.Canvas(self.bat_frame, width=100 + 10, height=30)
+		self.healthbar = tk.Canvas(self.nav_frame, width=100 + 10, height=30)
 		self.healthbar.grid(row=0, column=0, columnspan=3)
-
 		# health bar drawing
 		self.healthbar.create_rectangle(10, 10, 10 + 100, 30)
-
-		self.nav_stats = tk.Message(self.nav_frame, text="")
-		self.nav_stats.grid(row=1, column=1, columnspan=2)
 		
-		self.bat_stats = tk.Message(self.bat_frame, text="")
-		self.stats.grid(row=1, column=3)
-
-		# output text creation
-		self.out = tk.Message(
-			self.master,
+		self.stats = MultiframeWidget(
+			{"nav": self.nav_frame, "bat": self.bat_frame},
+			tk.Message,
+			text=""
+		)
+		self.stats.widgets["nav"].grid(row=1, column=1, columnspan=2)
+		self.stats.widgets["bat"].grid(row=1, column=3)
+		
+		self.out = MultiframeWidget(
+			{"nav": self.nav_frame, "bat": self.bat_frame},
+			tk.Message,
 			text="Welcome to The Dungeon. Come once, stay forever!",
 			width=W + 100
 		)
-		self.out.grid(row=5, column=0, columnspan=4)
+		self.out.widgets["nav"].grid(row=5, column=0, columnspan=4)
+		self.out.widgets["bat"].grid(row=2, column=0, columnspan=3)
 
-		self.entry = tk.Entry(self.master)
-		self.entry.grid(row=6, column=1, columnspan=2)
+		self.entry = MultiframeWidget(
+			{"nav": self.nav_frame, "bat": self.bat_frame},
+			tk.Message,
+		)
+		self.entry.widgets["nav"].grid(row=6, column=1, columnspan=2)
+		self.entry.widgets["bat"].grid(row=3, column=0, columnspan=3)
 
 		# top level shop menu
 		self.shop = tk.Menu(self.master)
@@ -91,7 +115,7 @@ class GUI(object):
 		# add menu to screen
 		self.master.config(menu=self.shop)
 
-		self.game_over = tk.Canvas(self.master, width=W + 100, height=H)
+		self.game_over = tk.Canvas(self.game_over_frame, width=W + 100, height=H)
 		self.game_over.create_rectangle(0, 0, W + 100, H + 50, fill="black")
 		self.game_over.create_text(
 			W/2 + 50,
@@ -102,11 +126,15 @@ class GUI(object):
 		)
 
 		#  fight screen
-		self.cbt_scr = tk.Canvas(self.master, width=W + 100, height=H)
+		self.cbt_scr = tk.Canvas(self.bat_frame, width=W + 100, height=H)
+		self.cbt_scr.grid(row=0, column=0, columnspan=3)
 
 		self.leave_btn = tk.Button(
-			self.master, text="", command=self.leave
+			self.bat_frame, text="", command=self.leave
 		)
+		self.leave_btn
+
+		#gui.b[4].grid(row=1, column=1)
 
 		# key bindings
 		self.master.bind("<Up>", self.movement_factory("north"))
@@ -146,15 +174,19 @@ class GUI(object):
 
 		self.dungeon = dungeon
 		self.dungeon.current_floor.disp.grid(row=0, column=3, rowspan=5)
-		self.dungeon.current_floor.create_display()
+		#self.dungeon.current_floor.create_display()
 		self.dungeon.current_floor.disp.bind("<Button 1>", self.room_info)
 
 		self.att_b = tk.Button(
-			self.master,
+			self.bat_frame,
 			text="Attack",
 			command=lambda: self.cur_room().en.be_attacked())
-		self.run_b = tk.Button(self.master, text="Flee", command=self.flee)
+		self.att_b.grid(row=1, column=0)
+		
+		self.run_b = tk.Button(self.bat_frame, text="Flee", command=self.flee)
+		self.run_b.grid(row=1, column=2)
 
+		# ISSUE: what frame should this be on?
 		self.inter_btn = tk.Button(
 			self.master,
 			text="",
@@ -180,7 +212,7 @@ class GUI(object):
 
 		# collections of widgets
 		self.restart_button = tk.Button(
-			self.master,
+			self.game_over_frame,
 			text="Restart",
 			command=restart,
 			width=10
@@ -419,25 +451,10 @@ class GUI(object):
 	def navigation_mode(self):
 		"""Switch to navigation screen"""
 
-		self.cbt_scr.delete("all")
-		for i in self.fight_widgets + self.non_hostile_widgets:
-			i.grid_remove()
-		for i in self.navigation_widgets:
-			i.grid()
-		self.navigation_widgets[0].grid(row=0, column=3, rowspan=5)
-		self.out.grid(row=5, column=0, columnspan=4)
-		self.b[4].grid(row=1, column=0)
-		self.entry.grid(row=6, column=1, columnspan=2)
-		self.stats.grid(row=1, column=1, columnspan=2)
-		self.master.config(menu=self.shop)
+		self.bat_frame.grid_remove()
+		self.nav_frame.grid(row=0, column=0)
+		
 		self.screen = "navigation"
-		self.healthbar.coords(
-			"navigation_healthbar",
-			10,
-			10,
-			10 + (100 * self.p.health / self.p.max_health),
-			30
-		)
 
 	def leave(self):
 		if self.screen == "fight":
@@ -582,7 +599,7 @@ class GUI(object):
 				current_floor[int(tag[0])][int(tag[1])]
 			)
 
-			if int(tag[0]) == p.loc[0] and int(tag[1]) == self.p.loc[1]:
+			if int(tag[0]) == self.p.loc[0] and int(tag[1]) == self.p.loc[1]:
 				self.out.config(text="This is your current location.")
 			elif clicked_room.visited:
 				self.out.config(text=clicked_room.info)
