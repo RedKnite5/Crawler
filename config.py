@@ -9,6 +9,10 @@ __all__ = [
 	"H",
 	"SMW",
 	"SMH",
+	"INV_WIDTH",
+	"INV_HEIGHT",
+	"IBW",
+	"IBH",
 	"COST_MUL",
 	"STARTING_GOLD",
 	"DISTANCE_DIFF",
@@ -37,11 +41,18 @@ H = 300
 # width of a room in pixels
 SMW = W // DUN_W
 SMH = H // DUN_H
+
+INV_WIDTH = 5
+INV_HEIGHT = 5
+
+IBW = W // INV_WIDTH
+IBH = H // INV_HEIGHT
+
 COST_MUL = 1
 STARTING_GOLD = 300
 # the amount that distance from the center makes enemies stronger
 DISTANCE_DIFF = 70
-DEFAULT_MAX_HEALTH = 10
+DEFAULT_MAX_HEALTH = 100
 DEFAULT_DAMAGE = 10
 DEFAULT_DEFENCE = 0
 # the amount of a health potion heals

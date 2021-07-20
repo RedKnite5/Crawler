@@ -36,18 +36,56 @@ class GUI(object):
 		self.screen = "navigation"
 
 		self.master = tk.Tk()
-		
-		self.nav_frame = tk.Frame(self.master)
-		self.inv_frame = tk.Frame(self.master)
-		self.bat_frame = tk.Frame(self.master)
-		self.game_over_frame = tk.Frame(self.master)
-		
-		self.nav_frame.grid(row=0, column=0)
 
 		# window name
 		self.master.title(string="The Dungeon")
 		self.empty_menu = tk.Menu(self.master)
+		
+		self.init_nav_scr()
+		self.init_inv_scr()
+		self.init_bat_scr()
+		self.init_gmo_scr()
+		
+		self.stats = MultiframeWidget(
+			{"nav": self.nav_frame, "bat": self.bat_frame},
+			tk.Message,
+			text=""
+		)
+		self.stats.widgets["nav"].grid(row=1, column=1, columnspan=2)
+		self.stats.widgets["bat"].grid(row=1, column=3)
+		
+		self.out = MultiframeWidget(
+			{"nav": self.nav_frame, "bat": self.bat_frame},
+			tk.Message,
+			text="Welcome to The Dungeon. Come once, stay forever!",
+			width=W + 100
+		)
+		self.out.widgets["nav"].grid(row=5, column=0, columnspan=4)
+		self.out.widgets["bat"].grid(row=2, column=0, columnspan=3)
 
+		# top level shop menu
+		self.shop = tk.Menu(self.master)
+		# drop down menu
+		self.stock = tk.Menu(self.shop, tearoff=0)
+
+		self.shop.add_cascade(menu=self.stock, label="Shop")
+		# add menu to screen
+		self.master.config(menu=self.shop)
+		
+		# key bindings
+		self.master.bind("<Up>", self.movement_factory("north"))
+		self.master.bind("<Down>", self.movement_factory("south"))
+		self.master.bind("<Right>", self.movement_factory("east"))
+		self.master.bind("<Left>", self.movement_factory("west"))
+
+		self.master.bind("<Return>", self.enter_key)
+		self.master.bind("<Button 1>", self.mouse_click)
+
+	def init_nav_scr(self):
+	
+		self.nav_frame = tk.Frame(self.master)
+		self.nav_frame.grid(row=0, column=0)
+		
 		# movement & inventory button creation
 		self.b = [tk.Button(self.nav_frame) for i in range(5)]
 
@@ -75,46 +113,55 @@ class GUI(object):
 		self.b[2].grid(row=3, column=2)
 		self.b[3].grid(row=4, column=1)
 		self.b[4].grid(row=1, column=0)
-		
+
 		# health bar creation
 		self.healthbar = tk.Canvas(self.nav_frame, width=100 + 10, height=30)
 		self.healthbar.grid(row=0, column=0, columnspan=3)
 		# health bar drawing
 		self.healthbar.create_rectangle(10, 10, 10 + 100, 30)
+
+	def init_inv_scr(self):
 		
-		self.stats = MultiframeWidget(
-			{"nav": self.nav_frame, "bat": self.bat_frame},
-			tk.Message,
-			text=""
-		)
-		self.stats.widgets["nav"].grid(row=1, column=1, columnspan=2)
-		self.stats.widgets["bat"].grid(row=1, column=3)
+		self.inv_frame = tk.Frame(self.master)
 		
-		self.out = MultiframeWidget(
-			{"nav": self.nav_frame, "bat": self.bat_frame},
-			tk.Message,
-			text="Welcome to The Dungeon. Come once, stay forever!",
-			width=W + 100
+		self.inv_scr = tk.Canvas(self.inv_frame, width=W + 100, height=H)
+		self.inv_scr.grid(row=0, column=0)
+		
+		page1 = []
+		# indexed as gui_inv[x][y]
+		self.gui_inv = [page1]
+		
+		for w in range(INV_WIDTH):
+			column = []
+			for h in range(INV_HEIGHT):
+				self.inv_scr.create_rectangle(
+					IBW * w + 2,
+					IBH * h + 2,
+					IBW * (w + 1) - 2,
+					IBH * (h + 1) - 2,
+					fill="grey",
+					tags=f"{str(w)},{str(h)}"
+				)
+				column.append(None)
+			page1.append(column)
+			
+	def init_bat_scr(self):
+		
+		self.bat_frame = tk.Frame(self.master)
+		
+		#  fight screen
+		self.cbt_scr = tk.Canvas(self.bat_frame, width=W + 100, height=H)
+		self.cbt_scr.grid(row=0, column=0, columnspan=3)
+
+		self.leave_btn = tk.Button(
+			self.bat_frame, text="", command=self.leave
 		)
-		self.out.widgets["nav"].grid(row=5, column=0, columnspan=4)
-		self.out.widgets["bat"].grid(row=2, column=0, columnspan=3)
-
-		self.entry = MultiframeWidget(
-			{"nav": self.nav_frame, "bat": self.bat_frame},
-			tk.Message,
-		)
-		self.entry.widgets["nav"].grid(row=6, column=1, columnspan=2)
-		self.entry.widgets["bat"].grid(row=3, column=0, columnspan=3)
-
-		# top level shop menu
-		self.shop = tk.Menu(self.master)
-		# drop down menu
-		self.stock = tk.Menu(self.shop, tearoff=0)
-
-		self.shop.add_cascade(menu=self.stock, label="Shop")
-		# add menu to screen
-		self.master.config(menu=self.shop)
-
+		self.leave_btn
+		
+	def init_gmo_scr(self):
+		
+		self.game_over_frame = tk.Frame(self.master)
+		
 		self.game_over = tk.Canvas(self.game_over_frame, width=W + 100, height=H)
 		self.game_over.create_rectangle(0, 0, W + 100, H + 50, fill="black")
 		self.game_over.create_text(
@@ -125,27 +172,7 @@ class GUI(object):
 			font=font.Font(size=40)
 		)
 		self.game_over.grid()
-
-		#  fight screen
-		self.cbt_scr = tk.Canvas(self.bat_frame, width=W + 100, height=H)
-		self.cbt_scr.grid(row=0, column=0, columnspan=3)
-
-		self.leave_btn = tk.Button(
-			self.bat_frame, text="", command=self.leave
-		)
-		self.leave_btn
-
-		#gui.b[4].grid(row=1, column=1)
-
-		# key bindings
-		self.master.bind("<Up>", self.movement_factory("north"))
-		self.master.bind("<Down>", self.movement_factory("south"))
-		self.master.bind("<Right>", self.movement_factory("east"))
-		self.master.bind("<Left>", self.movement_factory("west"))
-
-		self.master.bind("<Return>", self.enter_key)
-		self.master.bind("<Button 1>", self.mouse_click)
-
+		
 	def player_config(self, p):
 		"""Configure the settings that require the player exist"""
 
@@ -221,27 +248,21 @@ class GUI(object):
 		
 		self.game_over.create_window(W, H * 3/4, window=self.restart_button)
 		self.restart_button.lift()
-		
-		self.other_widgets = [
-			self.b[4],
-			self.entry,
-			self.stats,
-			self.restart_button,
-			self.game_over
-		]
 
-	@property
-	def navigation_widgets(self):
-
-		# Need to make disp in this list always be the disp of the current
-		# floor
-		return ([
-			self.dungeon.current_floor.disp,
-			self.healthbar,
-			self.out
-			]
-			+ self.b[:-1]
-		)
+	def add_to_inv(self, item):
+		for z, page in enumerate(self.gui_inv):
+			for x, col in enumerate(page):
+				for y, box in enumerate(col):
+					if box is None:
+						self.gui_inv[z][x][y] = item
+						self.inv_scr.create_image(
+							IBW * x + 3,
+							IBH * y + 3,
+							image=item.image,
+							anchor="nw"
+						)
+						return;
+						
 
 	def update_stats(self):
 		"""Update the stats for the player"""
@@ -472,14 +493,6 @@ class GUI(object):
 	def clear_screen(self):
 		"""Remove all widgets"""
 
-		'''
-		for i in (
-			self.navigation_widgets
-			+ self.fight_widgets
-			+ self.other_widgets
-		):
-			i.grid_remove()
-		'''
 		self.nav_frame.grid_remove()
 		self.bat_frame.grid_remove()
 		self.inv_frame.grid_remove()
@@ -510,10 +523,7 @@ class GUI(object):
 			if self.screen == "stairs":
 				self.navigation_mode()
 
-			if (
-				self.screen != "fight"
-				and self.master.focus_get() is not self.entry
-			):
+			if self.screen != "fight":
 				self.p.move(direction)
 
 		if not hasattr(type(_self), f"move_{direction}"):
@@ -524,10 +534,10 @@ class GUI(object):
 	# to the functions it calls
 	def buy_item_fact(self, item_name, amount=1, *args):
 		"""Factory for buying things in the shop"""
-
+		
+		# Can not take parameters because tkinter does not support that
 		def buy_specific_item():
-			"""Function to buy an item from the shop. Can not take parameters
-			because tkinter does not support that"""
+			"""Function to buy an item from the shop."""
 
 			for i in range(amount):
 				item = self.buyable_items[item_name](*args)
@@ -667,9 +677,6 @@ class GUI(object):
 		}
 		return data
 # END
-
-
-
 
 
 

@@ -105,8 +105,8 @@ class Floor(object):
 				self.disp.create_rectangle(
 					SMW * i,
 					SMH * k,
-					SMW * i + SMW,
-					SMH * k + SMH,
+					SMW * (i + 1),
+					SMH * (k + 1),
 					fill="grey",
 					tags=f"{str(i)},{str(k)}"
 				)
@@ -209,6 +209,12 @@ class CollectableItem(object):
 		self.amount = amount
 		self.name = "undefined_collectable_item"
 		self.plurale = False
+		
+		if not hasattr(type(self), "image"):
+			# item icon stuff
+			image = Image.open("ImageNotFound.png")
+			image = image.resize((IBW - 5, IBH - 5))
+			type(self).image = ImageTk.PhotoImage(image)
 
 	def __str__(self):
 		return self.name
@@ -275,9 +281,14 @@ class Player(object):
 		self.defence = DEFAULT_DEFENCE
 		self.experiance = 0
 		self.lvl = 1
-		self.inven = {"gold": Gold(amount=STARTING_GOLD)}
+		self.inven = {}
 		self.equipment = {}
 		self.status = None
+		
+		image = Image.open("gold.jpg")
+		image = image.resize((IBW, IBH))
+		type(self).image = ImageTk.PhotoImage(image)
+		
 
 	def move(self, direction):
 		"""Player movement on map function"""
@@ -320,10 +331,10 @@ class Player(object):
 	def disp_in(self):
 		"""Display the player's inventory"""
 
-		hold = ""
-		for key, val in self.inven.items():
-			hold += f"\n{str(key).title()}: {str(val.amount)}"
-		gui.out.config(text=hold[1:])
+		gui.nav_frame.grid_remove()
+		gui.bat_frame.grid_remove()
+		
+		gui.inv_frame.grid(row=0, column=0)
 
 	def search_inventory(self, item, searching="inventory"):
 		"""Find the name of the item in the player's inventory or equipment"""
@@ -446,7 +457,7 @@ class Stairs(Encounter):
 	def __init__(self, location, dist=+1, to=None):
 
 		if not hasattr(type(self), "image"):
-			image = Image.open("dungeon_stairs.png")
+			image = Image.open("dungeon_stairs.jpg")
 			image = image.resize((180, 240))
 			type(self).image = ImageTk.PhotoImage(image)
 
@@ -635,11 +646,7 @@ class Enemy(Encounter):
 		cur_room().info = "This is an empty room."
 
 		# take loot
-		for i in self.loot:
-			if i in p.inven:
-				p.inven[i] += self.loot[i]
-			else:
-				p.inven[i] = self.loot[i]
+		get_loot(self.loot)
 
 		self.leave()
 
@@ -693,7 +700,7 @@ class Drider(Enemy):
 
 	def __init__(self, *args, **kwargs):
 		# noinspection PyArgumentList,PyArgumentList
-		super().__init__(*args, filename="Drider.png", **kwargs)
+		super().__init__(*args, filename="Drider.jpg", **kwargs)
 
 		self.max_health = rand.randint(40, 60) + monsters_killed
 		self.health = self.max_health
@@ -957,6 +964,15 @@ def restart():
 	gui.master.mainloop()
 
 
+def get_loot(loot: dict):
+	for key, item in loot.items():
+		if key in p.inven:
+			p.inven[key] += item
+		else:
+			p.inven[key] = item
+			gui.add_to_inv(item)
+
+
 if __name__ == "__main__":
 	print("\n" * 3)
 
@@ -966,6 +982,7 @@ if __name__ == "__main__":
 	gui.misc_config(buyable_items, restart)
 
 	p = Player()  # player creation
+	get_loot({"gold": Gold(amount=STARTING_GOLD)})
 
 	gui.player_config(p)
 
