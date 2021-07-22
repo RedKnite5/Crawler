@@ -72,14 +72,7 @@ class GUI(object):
 		# add menu to screen
 		self.master.config(menu=self.shop)
 		
-		# key bindings
-		self.master.bind("<Up>", self.movement_factory("north"))
-		self.master.bind("<Down>", self.movement_factory("south"))
-		self.master.bind("<Right>", self.movement_factory("east"))
-		self.master.bind("<Left>", self.movement_factory("west"))
-
-		self.master.bind("<Return>", self.enter_key)
-		self.master.bind("<Button 1>", self.mouse_click)
+		self.bindings()
 
 	def init_nav_scr(self):
 	
@@ -153,6 +146,7 @@ class GUI(object):
 		self.cbt_scr = tk.Canvas(self.bat_frame, width=W + 100, height=H)
 		self.cbt_scr.grid(row=0, column=0, columnspan=3)
 
+		# for non-hostile encounters
 		self.leave_btn = tk.Button(
 			self.bat_frame, text="", command=self.leave
 		)
@@ -179,26 +173,52 @@ class GUI(object):
 		self.p = p
 
 		# inventory button configuration
-		self.b[4].configure(text="Inventory", command=self.p.disp_in)
+		self.b[4].configure(text="Inventory", command=self.disp_in)
 
+		self.create_healthbar(p.health, p.max_health)
+
+		self.update_stats(p.damage, p.defence)
+
+	def bindings(self):
+		# key bindings
+		self.master.bind("<Up>", self.movement_factory("north"))
+		self.master.bind("<Down>", self.movement_factory("south"))
+		self.master.bind("<Right>", self.movement_factory("east"))
+		self.master.bind("<Left>", self.movement_factory("west"))
+
+		self.master.bind("<Return>", self.enter_key)
+		self.master.bind("<Button 1>", self.mouse_click)
+		
+		
+	def disp_in(self):
+		"""Display the player's inventory"""
+
+		self.nav_frame.grid_remove()
+		self.bat_frame.grid_remove()
+		
+		self.inv_frame.grid(row=0, column=0)
+
+	def create_healthbar(self, health, max_health):
 		self.healthbar.create_rectangle(
 			10,
 			10,
-			10 + (100 * p.health / p.max_health),
+			10 + (100 * health / max_health),
 			30,
 			fill="green",
 			tags="navigation_healthbar"
 		)
 		self.healthbar.create_text(
 			60, 20,
-			text=f"{p.health}/{p.max_health}",
+			text=f"{health}/{max_health}",
 			tags="navigation_healthbar_text"
 		)
 
-		self.update_stats()
-
-	def dungeon_config(self, dungeon):
-		"""Configure settings that require that the dungeon object exist"""
+	def dungeon_config(self, dungeon, player_loc):
+		"""Configure settings that require that the dungeon object exist
+		
+		Also and the player location"""
+		
+		self.player_loc = player_loc
 
 		self.dungeon = dungeon
 		self.dungeon.current_floor.disp.grid(row=0, column=3, rowspan=5)
@@ -210,6 +230,7 @@ class GUI(object):
 			text="Attack",
 			command=lambda: self.cur_room().en.be_attacked())
 		self.att_b.grid(row=1, column=0)
+		
 		
 		self.run_b = tk.Button(self.bat_frame, text="Flee", command=self.flee)
 		self.run_b.grid(row=1, column=2)
@@ -254,22 +275,25 @@ class GUI(object):
 			for x, col in enumerate(page):
 				for y, box in enumerate(col):
 					if box is None:
+						
 						self.gui_inv[z][x][y] = item
+						
+						# doesn't display for overridden images for somereason
 						self.inv_scr.create_image(
 							IBW * x + 3,
 							IBH * y + 3,
 							image=item.image,
 							anchor="nw"
 						)
-						return;
-						
+						return
 
-	def update_stats(self):
+	def update_stats(self, damage, defence):
 		"""Update the stats for the player"""
 
 		self.stats.config(
-			text=f"Damage: {self.p.damage}\nDefence: {self.p.defence}"
+			text=f"Damage: {damage}\nDefence: {defence}"
 		)
+
 
 	def enter_key(self, event):
 		"""This function triggers when you press the enter key in the
@@ -442,6 +466,7 @@ class GUI(object):
 		else:
 			self.out.config(text="You do not have any of that")
 
+
 	def update_healthbar(self):
 		"""Update the appearance of the healthbar in both the fighting screen
 		and the navigation screen"""
@@ -484,8 +509,8 @@ class GUI(object):
 		else:
 			self.navigation_mode()
 			self.dungeon.current_floor.disp.create_image(
-				int(SMW * (p.loc[0] + .5)),
-				int(SMH * (p.loc[1] + .5)),
+				int(SMW * (self.player_loc[0] + .5)),
+				int(SMH * (self.player_loc[1] + .5)),
 				image=self.cur_room().en.icon,
 				anchor="center"
 			)
@@ -583,7 +608,7 @@ class GUI(object):
 	def cur_room(self):
 		"""Return the Room object that they player is currently in"""
 
-		room = self.dungeon.current_floor[self.p.loc[0]][self.p.loc[1]]
+		room = self.dungeon.current_floor[self.player_loc[0]][self.player_loc[1]]
 		return room
 		
 	def room_info(self, event):
@@ -615,7 +640,7 @@ class GUI(object):
 				current_floor[int(tag[0])][int(tag[1])]
 			)
 
-			if int(tag[0]) == self.p.loc[0] and int(tag[1]) == self.p.loc[1]:
+			if int(tag[0]) == self.player_loc[0] and int(tag[1]) == self.player_loc[1]:
 				self.out.config(text="This is your current location.")
 			elif clicked_room.visited:
 				self.out.config(text=clicked_room.info)
@@ -632,12 +657,12 @@ class GUI(object):
 			# if there is a space in the tags tkinter will split it up so
 			# don't add one
 			self.dungeon.current_floor.disp.create_oval(
-				SMW * self.p.loc[0] + SMW / 4,
-				SMH * self.p.loc[1] + SMH / 4,
-				SMW * self.p.loc[0] + SMW * 3/4,
-				SMH * self.p.loc[1] + SMH * 3/4,
+				SMW * self.player_loc[0] + SMW / 4,
+				SMH * self.player_loc[1] + SMH / 4,
+				SMW * self.player_loc[0] + SMW * 3/4,
+				SMH * self.player_loc[1] + SMH * 3/4,
 				fill="red",
-				tags=f"enemy{str(self.p.loc[0])},{str(self.p.loc[1])}"
+				tags=f"enemy{str(self.player_loc[0])},{str(self.player_loc[1])}"
 			)
 			self.out.config(text="You got away.")
 		else:

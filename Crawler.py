@@ -22,7 +22,9 @@ from config import *
 #       not produce any message.
 # ToDo: Change how equiping stuff works so that it doesn't remove it from
 #       the inventory, just puts a marker by it.
+# ToDo: Get Gold icon to work
 
+# fix all issues labeled: 'BUG:'
 
 monsters_killed = 0
 
@@ -210,6 +212,9 @@ class CollectableItem(object):
 		self.name = "undefined_collectable_item"
 		self.plurale = False
 		
+		# if a refereance is not kept to ImageTk.PhotoImage(image) it
+		# is garbage collected and will not display
+		# BUG: also doesn't work as a class attribute for some reason
 		if not hasattr(type(self), "image"):
 			# item icon stuff
 			image = Image.open("ImageNotFound.png")
@@ -217,7 +222,8 @@ class CollectableItem(object):
 			type(self).image = ImageTk.PhotoImage(image)
 
 	def __str__(self):
-		return self.name
+		return f"{self.amount} {self.name}"
+		#return self.name
 
 	# math ops are here to allow manipulation of the
 	# amounts without too much extra work
@@ -264,6 +270,13 @@ class Gold(CollectableItem):
 		# noinspection PyArgumentList
 		super().__init__(amount, *args, **kwargs)
 		self.name = "gold"
+		
+		''' # doesn't display anything, even the default image when not commented out
+		image = Image.open("gold.png")
+		image = image.resize((IBW - 5, IBH - 5))
+		type(self).image = ImageTk.PhotoImage(image)
+		'''
+
 
 
 class Player(object):
@@ -284,10 +297,6 @@ class Player(object):
 		self.inven = {}
 		self.equipment = {}
 		self.status = None
-		
-		image = Image.open("gold.jpg")
-		image = image.resize((IBW, IBH))
-		type(self).image = ImageTk.PhotoImage(image)
 		
 
 	def move(self, direction):
@@ -328,13 +337,6 @@ class Player(object):
 			fill="yellow"
 		)
 
-	def disp_in(self):
-		"""Display the player's inventory"""
-
-		gui.nav_frame.grid_remove()
-		gui.bat_frame.grid_remove()
-		
-		gui.inv_frame.grid(row=0, column=0)
 
 	def search_inventory(self, item, searching="inventory"):
 		"""Find the name of the item in the player's inventory or equipment"""
@@ -457,7 +459,7 @@ class Stairs(Encounter):
 	def __init__(self, location, dist=+1, to=None):
 
 		if not hasattr(type(self), "image"):
-			image = Image.open("dungeon_stairs.jpg")
+			image = Image.open("dungeon_stairs.png")
 			image = image.resize((180, 240))
 			type(self).image = ImageTk.PhotoImage(image)
 
@@ -487,7 +489,7 @@ class Stairs(Encounter):
 
 		dungeon.floor_num += self.dist
 		p.floor = dungeon.current_floor
-		p.loc = [self.to["x"], self.to["y"]]
+		p.loc[:] = (self.to["x"], self.to["y"])
 
 		gui.navigation_widgets[0] = dungeon.current_floor.disp
 		gui.navigation_mode()
@@ -700,7 +702,7 @@ class Drider(Enemy):
 
 	def __init__(self, *args, **kwargs):
 		# noinspection PyArgumentList,PyArgumentList
-		super().__init__(*args, filename="Drider.jpg", **kwargs)
+		super().__init__(*args, filename="Drider.png", **kwargs)
 
 		self.max_health = rand.randint(40, 60) + monsters_killed
 		self.health = self.max_health
@@ -857,7 +859,7 @@ class Sword(BuyableItem, EquipableItem):
 			p.damage += 5
 			# reset this variable
 			self.equiped = False
-			gui.update_stats()
+			gui.update_stats(p.damage, p.defence)
 
 	def unequip(self):
 		"""Remove the sword"""
@@ -867,7 +869,7 @@ class Sword(BuyableItem, EquipableItem):
 			p.damage -= 5
 			# reset this variable
 			self.unequiped = False
-			gui.update_stats()
+			gui.update_stats(p.damage, p.defence)
 
 
 # needed to create different tiers of armor dynamically
@@ -899,7 +901,7 @@ def armor_factory(tier):
 			if self.equiped:
 				p.defence += 5 + 5 * self.tier
 				self.equiped = False  # reset this variable
-				gui.update_stats()
+				gui.update_stats(p.damage, p.defence)
 
 		def unequip(self):
 			"""Take off the armor"""
@@ -908,7 +910,7 @@ def armor_factory(tier):
 			if self.unequiped:
 				p.defence -= 5 + 5 * self.tier
 				self.unequiped = False  # reset this variable
-				gui.update_stats()
+				gui.update_stats(p.damage, p.defence)
 
 
 	return Armor  # return the class from the factory
@@ -987,8 +989,17 @@ if __name__ == "__main__":
 	gui.player_config(p)
 
 	dungeon = Dungeon()
-	gui.dungeon_config(dungeon)
+	gui.dungeon_config(dungeon, p.loc)
 
 	p.floor = dungeon.current_floor
 
 	gui.master.mainloop()
+
+
+
+
+
+
+
+
+
