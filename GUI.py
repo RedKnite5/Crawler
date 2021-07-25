@@ -9,6 +9,11 @@ from tkinter import font
 from re import match
 from random import randint
 
+from PIL import Image
+from PIL import ImageOps
+from PIL import ImageTk
+
+
 from errors import *
 from config import *
 
@@ -31,9 +36,10 @@ class MultiframeWidget(object):
 class GUI(object):
 	"""The user interface for the game"""
 
-	def __init__(self):
+	def __init__(self, inven):
 
 		self.screen = "navigation"
+		self.inven = inven
 
 		self.master = tk.Tk()
 
@@ -117,15 +123,13 @@ class GUI(object):
 		
 		self.inv_frame = tk.Frame(self.master)
 		
+		self.back_btn = tk.Button(self.inv_frame, text="leave", command=self.leave_inv)
+		self.back_btn.grid(row=0, column=1)
+		
 		self.inv_scr = tk.Canvas(self.inv_frame, width=W + 100, height=H)
 		self.inv_scr.grid(row=0, column=0)
 		
-		page1 = []
-		# indexed as gui_inv[x][y]
-		self.gui_inv = [page1]
-		
 		for w in range(INV_WIDTH):
-			column = []
 			for h in range(INV_HEIGHT):
 				self.inv_scr.create_rectangle(
 					IBW * w + 2,
@@ -135,8 +139,6 @@ class GUI(object):
 					fill="grey",
 					tags=f"{str(w)},{str(h)}"
 				)
-				column.append(None)
-			page1.append(column)
 			
 	def init_bat_scr(self):
 		
@@ -186,7 +188,7 @@ class GUI(object):
 		self.master.bind("<Right>", self.movement_factory("east"))
 		self.master.bind("<Left>", self.movement_factory("west"))
 
-		self.master.bind("<Return>", self.enter_key)
+		#self.master.bind("<Return>", self.enter_key)
 		self.master.bind("<Button 1>", self.mouse_click)
 		
 		
@@ -271,21 +273,19 @@ class GUI(object):
 		self.restart_button.lift()
 
 	def add_to_inv(self, item):
-		for z, page in enumerate(self.gui_inv):
-			for x, col in enumerate(page):
-				for y, box in enumerate(col):
-					if box is None:
-						
-						self.gui_inv[z][x][y] = item
-						
-						# doesn't display for overridden images for somereason
-						self.inv_scr.create_image(
-							IBW * x + 3,
-							IBH * y + 3,
-							image=item.image,
-							anchor="nw"
-						)
-						return
+		index = self.inven.add(item.name, item)
+		if index is not None:
+			x  = index % INV_WIDTH
+			y = (index % (INV_WIDTH * INV_HEIGHT)) // INV_WIDTH
+			self.inv_scr.create_image(
+				IBW * x + 3,
+				IBH * y + 3,
+				image=item.image,
+				anchor="nw"
+			)
+
+	def leave_inv(self):
+		pass
 
 	def update_stats(self, damage, defence):
 		"""Update the stats for the player"""
@@ -294,7 +294,7 @@ class GUI(object):
 			text=f"Damage: {damage}\nDefence: {defence}"
 		)
 
-
+	'''
 	def enter_key(self, event):
 		"""This function triggers when you press the enter key in the
 		entry box. It is to use or equip something in your inventory"""
@@ -466,8 +466,9 @@ class GUI(object):
 		else:
 			self.out.config(text="You do not have any of that")
 
+'''
 
-	def update_healthbar(self):
+	def update_healthbar(self, health, max_health):
 		"""Update the appearance of the healthbar in both the fighting screen
 		and the navigation screen"""
 
@@ -475,24 +476,24 @@ class GUI(object):
 			"fight_healthbar",
 			10,
 			H - 30,
-			10 + (100 * self.p.health / self.p.max_health),
+			10 + (100 * health / max_health),
 			H - 10
 		)
 		self.cbt_scr.itemconfig(
 			"fight_healthbar_text",
-			text=f"{self.p.health}/{self.p.max_health}"
+			text=f"{health}/{max_health}"
 		)
 
 		self.healthbar.coords(
 			"navigation_healthbar",
 			10,
 			10,
-			10 + (100 * self.p.health / self.p.max_health),
+			10 + (100 * health / max_health),
 			30
 		)
 		self.healthbar.itemconfig(
 			"navigation_healthbar_text",
-			text=f"{self.p.health}/{self.p.max_health}"
+			text=f"{health}/{max_health}"
 		)
 
 	def navigation_mode(self):
@@ -567,18 +568,18 @@ class GUI(object):
 			for i in range(amount):
 				item = self.buyable_items[item_name](*args)
 
-				if self.p.inven["gold"].amount >= item.cost:
-					if item_name in self.p.inven:
-						self.p.inven[item_name].amount += 1
+				if self.inven["gold"].amount >= item.cost:
+					if item_name in self.inven:
+						self.inven[item_name].amount += 1
 					else:
-						self.p.inven[item_name] = item
+						self.inven[item_name] = item
 					# passive effect from having it
 					item.effect()
 					if item.plurale:
 						self.out.config(text=f"You bought {item_name}")
 					else:
 						self.out.config(text=f"You bought a {item_name}")
-					self.p.inven["gold"] -= item.cost
+					self.inven["gold"] -= item.cost
 					if hasattr(item, "tier"):
 						# replace item in list of buyable items
 						del self.buyable_items[item_name]

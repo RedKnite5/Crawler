@@ -7,12 +7,14 @@ import tkinter as tk
 from re import match
 from functools import total_ordering
 from math import atan, pi
+import os
 
 from PIL import Image
 from PIL import ImageOps
 from PIL import ImageTk
 
 from GUI import GUI
+from inven import Inventory
 from errors import *
 from config import *
 
@@ -207,17 +209,16 @@ class Room(object):
 class CollectableItem(object):
 	"""Class for any item that can be gained by the player."""
 
-	def __init__(self, amount=1, *args):
+	def __init__(self, amount=1, filename="ImageNotFound.png", *args):
 		self.amount = amount
 		self.name = "undefined_collectable_item"
 		self.plurale = False
 		
 		# if a refereance is not kept to ImageTk.PhotoImage(image) it
 		# is garbage collected and will not display
-		# BUG: also doesn't work as a class attribute for some reason
 		if not hasattr(type(self), "image"):
 			# item icon stuff
-			image = Image.open("ImageNotFound.png")
+			image = Image.open(file_path(filename))
 			image = image.resize((IBW - 5, IBH - 5))
 			type(self).image = ImageTk.PhotoImage(image)
 
@@ -266,23 +267,15 @@ class CollectableItem(object):
 class Gold(CollectableItem):
 	"""Collectable currency"""
 
-	def __init__(self, *args, amount=0, **kwargs):
-		# noinspection PyArgumentList
-		super().__init__(amount, *args, **kwargs)
+	def __init__(self, amount=0, *args, **kwargs):
+		super().__init__(amount, filename="gold.png", *args, **kwargs)
 		self.name = "gold"
-		
-		''' # doesn't display anything, even the default image when not commented out
-		image = Image.open("gold.png")
-		image = image.resize((IBW - 5, IBH - 5))
-		type(self).image = ImageTk.PhotoImage(image)
-		'''
-
 
 
 class Player(object):
 	"""Class for the player. Includes stats and actions."""
 
-	def __init__(self, race="human"):
+	def __init__(self, inventory, race="human"):
 		"""Setting stats and variables"""
 
 		self.race = race
@@ -294,7 +287,7 @@ class Player(object):
 		self.defence = DEFAULT_DEFENCE
 		self.experiance = 0
 		self.lvl = 1
-		self.inven = {}
+		self.inven = inventory
 		self.equipment = {}
 		self.status = None
 		
@@ -383,7 +376,7 @@ class Encounter(object):
 		"""
 
 		if not hasattr(type(self), "image"):
-			image = Image.open(filename)
+			image = Image.open(file_path(filename))
 			image = image.resize((180, 180))
 			type(self).image = ImageTk.PhotoImage(image)
 
@@ -455,16 +448,15 @@ class Empty(Encounter):
 class Stairs(Encounter):
 	"""Stairs to another Floor"""
 
-	# noinspection PyMissingConstructor
 	def __init__(self, location, dist=+1, to=None):
 
 		if not hasattr(type(self), "image"):
-			image = Image.open("dungeon_stairs.png")
+			image = Image.open(file_path("dungeon_stairs.png"))
 			image = image.resize((180, 240))
 			type(self).image = ImageTk.PhotoImage(image)
 
 			# icon of stairs
-			icon = Image.open("stairs_icon.png")
+			icon = Image.open(file_path("stairs_icon.png"))
 			icon = ImageOps.mirror(
 				icon.resize((SMW // 2, SMH // 2))
 			)
@@ -553,15 +545,6 @@ class Enemy(Encounter):
 		gui.screen = "fight"
 		gui.nav_frame.grid_remove()
 		gui.bat_frame.grid(row=0, column=0)
-		
-		#gui.clear_screen()
-		#gui.cbt_scr.grid(row=0, column=0, columnspan=3)
-		#gui.att_b.grid(row=1, column=0)
-		#gui.b[4].grid(row=1, column=1)
-		#gui.stats.grid(row=1, column=3)
-		#gui.run_b.grid(row=1, column=2)
-		#gui.out.grid(row=2, column=0, columnspan=3)
-		#gui.entry.grid(row=3, column=0, columnspan=3)
 
 		self.fight()
 
@@ -612,7 +595,7 @@ class Enemy(Encounter):
 		p.health -= damage_delt
 		if p.health <= 0:
 			gui.lose()
-		gui.update_healthbar()
+		gui.update_healthbar(p.health, p.max_health)
 		gui.out.config(text=f"The enemy did {str(damage_delt)} damage!")
 
 	def be_attacked(self):
@@ -659,13 +642,13 @@ class Goblin(Enemy):
 	def __init__(self, *args, **kwargs):
 		"""Set stats and loot"""
 
-		if not hasattr(type(self), "image"):
+		#if not hasattr(type(self), "image"):
 			# enemy icon stuff
-			image = Image.open("TypicalGoblin.png")
-			image = ImageOps.mirror(image.resize((180, 180)))
-			type(self).image = ImageTk.PhotoImage(image)
+		#	image = Image.open(file_path("TypicalGoblin.png"))
+		#	image = ImageOps.mirror(image.resize((180, 180)))
+		#	type(self).image = ImageTk.PhotoImage(image)
 
-		super().__init__(*args, **kwargs)
+		super().__init__(filename="TypicalGoblin.png", *args, **kwargs)
 		self.max_health = rand.randint(30, 40) + monsters_killed // 2
 		self.health = self.max_health
 		self.damage = rand.randint(3, 6) + monsters_killed // 5
@@ -701,7 +684,6 @@ class Drider(Enemy):
 	"""A enemy with medium health, but high attack and it can poison you"""
 
 	def __init__(self, *args, **kwargs):
-		# noinspection PyArgumentList,PyArgumentList
 		super().__init__(*args, filename="Drider.png", **kwargs)
 
 		self.max_health = rand.randint(40, 60) + monsters_killed
@@ -819,7 +801,7 @@ class HealthPot(UsableItem, BuyableItem):
 		if p.health > p.max_health:
 			p.health = p.max_health
 
-		gui.update_healthbar()
+		gui.update_healthbar(p.health, p.max_health)
 
 
 class SlimeHeart(UsableItem):
@@ -836,7 +818,7 @@ class SlimeHeart(UsableItem):
 		p.max_health += SLIME_HEART_VAL
 		p.health += SLIME_HEART_VAL
 
-		gui.update_healthbar()
+		gui.update_healthbar(p.health, p.max_health)
 
 
 # sword in shop
@@ -846,7 +828,7 @@ class Sword(BuyableItem, EquipableItem):
 	name = "sword"
 
 	def __init__(self, *args, **kwargs):
-		super().__init__(*args, **kwargs)
+		super().__init__(filename="sword.png", *args, **kwargs)
 		self.name = "sword"
 		self.cost = int(50 * COST_MUL)
 		self.space = ("1 hand", 2)
@@ -968,22 +950,29 @@ def restart():
 
 def get_loot(loot: dict):
 	for key, item in loot.items():
-		if key in p.inven:
-			p.inven[key] += item
-		else:
-			p.inven[key] = item
-			gui.add_to_inv(item)
+		#if key in p.inven:
+		#	p.inven[key] += item
+		#else:
+		#	p.inven[key] = item
+		gui.add_to_inv(item)
+
+
+def file_path(file):
+	dirname = os.path.dirname(__file__)
+	return os.path.join(dirname, file)
 
 
 if __name__ == "__main__":
 	print("\n" * 3)
+	
+	inventory = Inventory()
 
-	gui = GUI()
+	gui = GUI(inventory)
 
 	buyable_items = (Sword, HealthPot, armor_factory(1))
 	gui.misc_config(buyable_items, restart)
 
-	p = Player()  # player creation
+	p = Player(inventory)  # player creation
 	get_loot({"gold": Gold(amount=STARTING_GOLD)})
 
 	gui.player_config(p)
@@ -992,6 +981,18 @@ if __name__ == "__main__":
 	gui.dungeon_config(dungeon, p.loc)
 
 	p.floor = dungeon.current_floor
+	
+	
+	''' # works
+	wind = tk.Toplevel(gui.master)
+	can = tk.Canvas(wind, width=100, height=100)
+	can.pack()
+	can.create_image(
+		0, 0,
+		image=Gold.image,
+		anchor="nw"
+	)
+	'''
 
 	gui.master.mainloop()
 
