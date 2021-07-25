@@ -789,7 +789,7 @@ class HealthPot(UsableItem, BuyableItem):
 	name = "health potion"
 
 	def __init__(self, *args, **kwargs):
-		super().__init__(*args, **kwargs)
+		super().__init__(filename="healthpotion.png", *args, **kwargs)
 		self.cost = int(100 * COST_MUL)
 		self.name = "health potion"
 

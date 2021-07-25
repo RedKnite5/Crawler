@@ -285,7 +285,12 @@ class GUI(object):
 			)
 
 	def leave_inv(self):
-		pass
+		self.inv_frame.grid_remove()
+		if self.screen == "navigation":
+			self.nav_frame.grid(row=0, column=0)
+		elif self.screen == "battle":
+			self.nav_frame.grid(row=0, column=0)
+
 
 	def update_stats(self, damage, defence):
 		"""Update the stats for the player"""
@@ -294,179 +299,6 @@ class GUI(object):
 			text=f"Damage: {damage}\nDefence: {defence}"
 		)
 
-	'''
-	def enter_key(self, event):
-		"""This function triggers when you press the enter key in the
-		entry box. It is to use or equip something in your inventory"""
-
-		data = self.input_analysis(self.entry.get())
-		# name of item
-		item = data["subject"]
-		# name of item in the player's inventory
-		inv_names = self.p.search_inventory(item)
-
-
-		if data["command"] is None:
-			# Trying to equip or use
-			if any(self.p.inven.get(name, 0) for name in inv_names):
-				if hasattr(item, "use"):
-					data["command"] = "use"
-				elif hasattr(item, "equip"):
-					data["command"] = "equip"
-			elif any(self.p.search_inventory(item, "equipment")):
-				if (self.p.occupied_equipment().count(item.space[0])
-					>= item.space[1]):
-					data["command"] = "unequip"
-
-		if data["command"] == "use":
-			try:   # if you can use the item
-				self.p.inven[inv_name].use()
-				if self.screen == "fight":
-					# using items during a fight uses a turn
-					self.cur_room().en.attack()
-			except AttributeError:
-				self.out.config(text="That item is not usable")
-			except UseItemWithZeroError as e:
-				self.out.config(text=e.args[0])
-
-			return
-
-		if data["command"] == "equip":
-			# if you can equip the item
-			try:
-				self.p.inven[inv_name].equip()
-			except AttributeError:
-				self.out.config(text="That item is not equipable")
-			
-			return
-
-
-
-		# if you dont have any of the possible items and are trying to use or
-		# equip an item
-		if (
-			not any(self.p.inven.get(name, 0) for name in inv_names)
-			and data["command"] in ("equip", "use")
-		):
-			self.out.config(text="You do not have any of that")
-			return
-		# you are either unequiping the item or have not specified a command
-		if not any(self.p.inven.get(name, 0) for name in inv_names):
-
-			if len(inv_names) == 1:
-				inv_name = inv_names[0]
-			# the item was not found in your inventory
-			elif not inv_names:
-				self.out.config(
-					text="That item is not in your inventory and "
-					"is not equiped"
-				)
-				return
-			else:
-				self.out.config(
-					text="More than one item fits that description"
-				)
-				return
-		elif len(inv_names) > 0:
-
-			# If more than one value with at least one in the
-			# inventory, return
-			if sum(1 for name in inv_names if self.p.inven.get(name, 0)) > 1:
-				self.out.config(
-					text="More than one item fits that description"
-				)
-				return
-			else:
-
-				# set inv_name to the one that is in inventory.
-				inv_name = sorted(
-					inv_names, key=lambda n: -self.p.inven.get(n, 0)
-				)[0]
-
-		else:  # empty list default
-			inv_name = item
-
-		# development variable. Will be removed... at some point
-		done = True
-		if data["command"] == "unequip":
-
-			# look for the item in equipment if you are trying to unequip
-			# something
-			inv_names = self.p.search_inventory(item, "equipment")
-			try:
-				self.p.inven[inv_name].unequip()
-			except NotEquipedError:
-				self.out.config(text=f"{inv_name.title()} is not equiped")
-
-		elif data["command"] == "equip":
-
-			# if you can equip the item
-			try:
-				if self.p.inven[inv_name].amount > 0:
-
-					# if you are already wearing equipment in that slot
-					if (self.p.occupied_equipment().count(
-						self.p.inven[inv_name].space[0])
-						>= self.p.inven[inv_name].space[1]):
-
-						# if you are only wearing 1 thing in that slot
-						if self.p.inven[inv_name].space[1] == 1:
-
-							for key, val in self.p.equipment.items():
-
-								if val[0] == self.p.inven[inv_name].space:
-									val[2].unequip()
-									self.p.inven[inv_name].equip()
-									return
-
-					self.p.inven[inv_name].equip()
-					# equiping items takes a turn
-					if self.screen == "fight":
-						self.cur_room().en.attack()
-				else:
-					self.out.config(text="You do not have any of that")
-			except AttributeError:
-				self.out.config(text="That item is not equipable")
-
-		elif data["command"] == "use":
-			try:   # if you can use the item
-				if self.p.inven[inv_name].amount > 0:
-					self.p.inven[inv_name].use()
-					if self.screen == "fight":
-						# using items during a fight uses a turn
-						self.cur_room().en.attack()
-				else:
-					self.out.config(text="You do not have any of that")
-			except AttributeError:
-				self.out.config(text="That item is not usable")
-
-		else:
-			done = False
-
-		if done:
-			return
-
-		print("should finish")
-
-		if inv_name in self.p.inven:
-			if self.p.inven[inv_name].amount > 0:
-				try:   # if you can use the item
-					self.p.inven[inv_name].use()
-					if self.screen == "fight":
-						self.cur_room().en.attack()
-				except AttributeError:
-					try:  # if you can equip the item
-						self.p.inven[inv_name].equip()
-						if self.screen == "fight":  # using items takes a turn
-							self.cur_room().en.attack()
-					except AttributeError:
-						self.out.config(text="That item is not usable")
-			else:
-				self.out.config(text="You do not have any of that")
-		else:
-			self.out.config(text="You do not have any of that")
-
-'''
 
 	def update_healthbar(self, health, max_health):
 		"""Update the appearance of the healthbar in both the fighting screen
@@ -569,16 +401,14 @@ class GUI(object):
 				item = self.buyable_items[item_name](*args)
 
 				if self.inven["gold"].amount >= item.cost:
-					if item_name in self.inven:
-						self.inven[item_name].amount += 1
-					else:
-						self.inven[item_name] = item
+					self.add_to_inv(item)
 					# passive effect from having it
 					item.effect()
 					if item.plurale:
 						self.out.config(text=f"You bought {item_name}")
 					else:
 						self.out.config(text=f"You bought a {item_name}")
+					
 					self.inven["gold"] -= item.cost
 					if hasattr(item, "tier"):
 						# replace item in list of buyable items

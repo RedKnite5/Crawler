@@ -79,7 +79,7 @@ class Inventory(object):
 		assert isinstance(key, str)
 		
 		index = 0
-		for index in range(len(self.flat)):
+		for index in range(len(self.flat) + 1):
 			if index not in self.flat:
 				self.flat[index] = item
 				break
