@@ -30,7 +30,7 @@ class Inventory(object):
 		if isinstance(key, str):
 			return self.data[key][0]
 		elif isinstance(key, int):
-			return self.data[key]
+			return self.flat[key]
 
 	def __setitem__(self, key, item):
 		if isinstance(key, str):
@@ -72,6 +72,7 @@ class Inventory(object):
 		# it is the same object in both dictoraries
 		if key in self.data:
 			self.data[key][0] += item
+			return self.data[key][1]
 		else:
 			return self.insert(key, item)
 	
@@ -88,6 +89,26 @@ class Inventory(object):
 			self.pages += 1
 		return index
 	
+	def sub(self, key, amount):
+		
+		if isinstance(key, str):
+			self.data[key][0] -= amount
+			
+			count = self.data[key][0].amount
+			if count <= 0:
+				index = self.data[key][1]
+				del self.data[key]
+				del self.flat[index]
+			return count
+		elif isinstance(key, int):
+			self.flat[key] -= amount
+			
+			count = self.flat[key].amount
+			if count <= 0:
+				name = self.flat[key].name
+				del self.flat[key]
+				del self.data[name]
+			return count
 	
 			
 

@@ -705,14 +705,14 @@ class UsableItem(CollectableItem):
 	def use(self):
 		"""Use the item for what ever purpose it has"""
 
-		if self.p.inven[inv_name].amount <= 0:
+		if p.inven[self.name].amount <= 0:
 			raise UseItemWithZeroError(f"You have 0 {inv_name}s")
 
 		gui.out.config(text="Used " + self.name.title())
 
 		# should later change how consumable things work
 		# make not everything consumable? or add durability
-		p.inven[self.name] -= 1
+		#p.inven[self.name] -= 1
 
 
 class EquipableItem(CollectableItem):
@@ -981,18 +981,6 @@ if __name__ == "__main__":
 	gui.dungeon_config(dungeon, p.loc)
 
 	p.floor = dungeon.current_floor
-	
-	
-	''' # works
-	wind = tk.Toplevel(gui.master)
-	can = tk.Canvas(wind, width=100, height=100)
-	can.pack()
-	can.create_image(
-		0, 0,
-		image=Gold.image,
-		anchor="nw"
-	)
-	'''
 
 	gui.master.mainloop()
 

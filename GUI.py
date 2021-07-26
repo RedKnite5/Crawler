@@ -78,32 +78,38 @@ class GUI(object):
 		# add menu to screen
 		self.master.config(menu=self.shop)
 		
-		self.bindings()
+		self.navigation_mode()
+		
 
 	def init_nav_scr(self):
 	
 		self.nav_frame = tk.Frame(self.master)
-		self.nav_frame.grid(row=0, column=0)
 		
 		# movement & inventory button creation
 		self.b = [tk.Button(self.nav_frame) for i in range(5)]
+		
+		button_shape = {"width": 8, "height": 4}
 
 		# movement button configuation
 		self.b[0].configure(
 			text="North",
-			command=self.movement_factory("north")
+			command=self.movement_factory("north"),
+			**button_shape
 		)
 		self.b[3].configure(
 			text="South",
-			command=self.movement_factory("south")
+			command=self.movement_factory("south"),
+			**button_shape
 		)
 		self.b[1].configure(
 			text="West",
-			command=self.movement_factory("west")
+			command=self.movement_factory("west"),
+			**button_shape
 		)
 		self.b[2].configure(
 			text="East",
-			command=self.movement_factory("east")
+			command=self.movement_factory("east"),
+			**button_shape
 		)
 
 		# button placement
@@ -118,6 +124,8 @@ class GUI(object):
 		self.healthbar.grid(row=0, column=0, columnspan=3)
 		# health bar drawing
 		self.healthbar.create_rectangle(10, 10, 10 + 100, 30)
+		
+		self.nav_bindings()
 
 	def init_inv_scr(self):
 		
@@ -126,8 +134,12 @@ class GUI(object):
 		self.back_btn = tk.Button(self.inv_frame, text="leave", command=self.leave_inv)
 		self.back_btn.grid(row=0, column=1)
 		
-		self.inv_scr = tk.Canvas(self.inv_frame, width=W + 100, height=H)
+		self.inv_scr = tk.Canvas(self.inv_frame, width=W, height=H)
 		self.inv_scr.grid(row=0, column=0)
+		
+		self.inv_scr.bind("<Button 1>", self.inv_click)
+		
+		self.inv_images = {}
 		
 		for w in range(INV_WIDTH):
 			for h in range(INV_HEIGHT):
@@ -181,15 +193,15 @@ class GUI(object):
 
 		self.update_stats(p.damage, p.defence)
 
-	def bindings(self):
+	def nav_bindings(self):
 		# key bindings
-		self.master.bind("<Up>", self.movement_factory("north"))
-		self.master.bind("<Down>", self.movement_factory("south"))
-		self.master.bind("<Right>", self.movement_factory("east"))
-		self.master.bind("<Left>", self.movement_factory("west"))
+		
+		self.nav_frame.bind("<Up>", self.movement_factory("north"))
+		self.nav_frame.bind("<Down>", self.movement_factory("south"))
+		self.nav_frame.bind("<Right>", self.movement_factory("east"))
+		self.nav_frame.bind("<Left>", self.movement_factory("west"))
 
-		#self.master.bind("<Return>", self.enter_key)
-		self.master.bind("<Button 1>", self.mouse_click)
+		self.nav_frame.bind("<Button 1>", self.mouse_click)
 		
 		
 	def disp_in(self):
@@ -199,6 +211,8 @@ class GUI(object):
 		self.bat_frame.grid_remove()
 		
 		self.inv_frame.grid(row=0, column=0)
+		
+		self.inv_frame.focus_set()
 
 	def create_healthbar(self, health, max_health):
 		self.healthbar.create_rectangle(
@@ -225,6 +239,7 @@ class GUI(object):
 		self.dungeon = dungeon
 		self.dungeon.current_floor.disp.grid(row=0, column=3, rowspan=5)
 		#self.dungeon.current_floor.create_display()
+		# may need to do current_floor.disp.focus_set()
 		self.dungeon.current_floor.disp.bind("<Button 1>", self.room_info)
 
 		self.att_b = tk.Button(
@@ -274,20 +289,45 @@ class GUI(object):
 
 	def add_to_inv(self, item):
 		index = self.inven.add(item.name, item)
-		if index is not None:
+		total = self.inven[index].amount
+		new_text = str(total) if total > 1 else ""
+		
+		if index not in self.inv_images:
 			x  = index % INV_WIDTH
 			y = (index % (INV_WIDTH * INV_HEIGHT)) // INV_WIDTH
-			self.inv_scr.create_image(
+			icon_id = self.inv_scr.create_image(
 				IBW * x + 3,
 				IBH * y + 3,
 				image=item.image,
 				anchor="nw"
 			)
-
+			
+			text_id = self.inv_scr.create_text(
+				IBW * (x + 1) - 3,
+				IBH * (y + 1) - 1,
+				text=new_text,
+				anchor="se"
+			)
+			
+			self.inv_images[item.name] = [icon_id, text_id]
+		else:
+			self.inv_scr.itemconfig(self.inv_images[item.name][1], text=new_text)
+	
+	def sub_from_inv(self, item_name, amount):
+		total = self.inven.sub(item_name, amount)
+		
+		if total <= 0:
+			self.inv_scr.delete(self.inv_images[item_name][0])
+			self.inv_scr.delete(self.inv_images[item_name][1])
+			del self.inv_images[item_name]
+		else:
+			new_text = str(total) if total > 1 else ""
+			self.inv_scr.itemconfig(self.inv_images[item_name][1], text=new_text)
+		
 	def leave_inv(self):
 		self.inv_frame.grid_remove()
 		if self.screen == "navigation":
-			self.nav_frame.grid(row=0, column=0)
+			self.navigation_mode()
 		elif self.screen == "battle":
 			self.nav_frame.grid(row=0, column=0)
 
@@ -334,6 +374,8 @@ class GUI(object):
 		self.bat_frame.grid_remove()
 		self.nav_frame.grid(row=0, column=0)
 		
+		self.nav_frame.focus_set()
+		
 		self.screen = "navigation"
 
 	def leave(self):
@@ -369,9 +411,20 @@ class GUI(object):
 		entry widget"""
 
 		event.widget.focus()
+	
+	def inv_click(self, event):
+		
+		x = event.x * INV_WIDTH // W
+		y = event.y * INV_HEIGHT // H
+		
+		index = y * INV_WIDTH + x
+		
+		if index in self.inven:
+			self.inven[index].use()
+			self.sub_from_inv(self.inven[index].name, 1)
+
 
 	# factory necessary for tkinter key binding reasons
-	# noinspection PyMethodParameters
 	def movement_factory(_self, direction):
 		"""Factory for moveing the character functions"""
 
@@ -409,7 +462,9 @@ class GUI(object):
 					else:
 						self.out.config(text=f"You bought a {item_name}")
 					
-					self.inven["gold"] -= item.cost
+					#self.inven["gold"] -= item.cost
+					self.sub_from_inv("gold", item.cost)
+					
 					if hasattr(item, "tier"):
 						# replace item in list of buyable items
 						del self.buyable_items[item_name]
