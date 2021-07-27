@@ -31,37 +31,290 @@ class MultiframeWidget(object):
 				ret.append(getattr(widget, name)(*args, **kwargs))
 			return ret
 		return f
+
+
+class Navigation(object):
+	def __init__(self, master, p_max_health, p_loc, inv_mode, cur_room, write_out):
+	
+		self.frame = tk.Frame(master)
 		
+		self.player_loc = p_loc
+		self.cur_room = cur_room
+		self.write_out = write_out
+		
+		# movement & inventory button creation
+		self.b = [tk.Button(self.frame) for i in range(5)]
+		
+		#button_shape = {"width": 8, "height": 4}
+		
+		directions = ["north", "west", "east", "south"]
+		for index, dir in enumerate(directions):
+			self.b[index].configure(
+				text=dir.capitalize(),
+				command=self.movement_factory(dir),
+				width=8, height=4
+			)
+
+		# button placement
+		self.b[0].grid(row=2, column=1)
+		self.b[1].grid(row=3, column=0)
+		self.b[2].grid(row=3, column=2)
+		self.b[3].grid(row=4, column=1)
+		self.b[4].grid(row=1, column=0)
+		
+		# inventory button configuration
+		self.b[4].configure(text="Inventory", command=inv_mode)
+
+		# health bar creation
+		self.healthbar = tk.Canvas(self.frame, width=100 + 10, height=30)
+		self.healthbar.grid(row=0, column=0, columnspan=3)
+		# health bar drawing
+		self.healthbar.create_rectangle(10, 10, 10 + 100, 30)
+		
+		self.create_healthbar(p_max_health)
+		
+		self.map = tk.Canvas(self.frame, width=W, height=H)
+		self.map.grid(row=0, column=3, rowspan=5)
+		
+		self.create_display()
+		# may need to do current_floor.disp.focus_set()
+		self.map.bind("<Button 1>", self.room_info)
+		
+		self.nav_bindings(self.p_move)
+		
+	def create_display(self):
+		"""Create the map for the player to see"""
+
+		# display creation
+		for i in range(DUN_W):
+			for k in range(DUN_H):
+				# if there is a space in the tags tkinter will split it up
+				# do not add one
+				self.map.create_rectangle(
+					SMW * i,
+					SMH * k,
+					SMW * (i + 1),
+					SMH * (k + 1),
+					fill="grey",
+					tags=f"{i},{k}"
+				)
+
+		# player icon creation
+		self.map.create_oval(
+			SMW * self.player_loc[0],
+			SMH * self.player_loc[1],
+			SMW * self.player_loc[0] + SMW,
+			SMH * self.player_loc[1] + SMH,
+			fill="green",
+			tags="player"
+		)
+		
+	def create_healthbar(self, max_health):
+		self.healthbar.create_rectangle(
+			10,
+			10,
+			10 + 100,
+			30,
+			fill="green",
+			tags="navigation_healthbar"
+		)
+		self.healthbar.create_text(
+			60, 20,
+			text=f"{max_health}/{max_health}",  # assume full health at creation
+			tags="navigation_healthbar_text"
+		)
+		
+	def update_healthbar(self, health, max_health):
+		self.healthbar.coords(
+			"navigation_healthbar",
+			10,
+			10,
+			10 + (100 * health / max_health),
+			30
+		)
+		self.healthbar.itemconfig(
+			"navigation_healthbar_text",
+			text=f"{health}/{max_health}"
+		)
+		
+	def nav_bindings(self, p_move):
+		"""Bind all the relavant inputs for the nav frame"""
+		
+		directions = {
+			"north": "Up",
+			"south": "Down",
+			"east": "Right",
+			"west": "Left"
+		}
+		for cardinal, relative in directions.items():
+			self.frame.bind(f"<{relative}>", self.movement_factory(cardinal))
+		
+		#self.frame.bind("<Up>", self.movement_factory("north"))
+		#self.frame.bind("<Down>", self.movement_factory("south"))
+		#self.frame.bind("<Right>", self.movement_factory("east"))
+		#self.frame.bind("<Left>", self.movement_factory("west"))
+
+		self.frame.bind("<Button 1>", self.mouse_click)
+		
+	@staticmethod
+	def mouse_click(event):
+		"""The mouse is clicked in the master window. Used to unfocus from the
+		entry widget"""
+
+		event.widget.focus()
+		
+	# factory necessary for tkinter key binding reasons
+	def movement_factory(_self, direction):
+		"""Factory for moveing the character functions"""
+
+		def move_func(self, event=None):
+			"""Move in a direction"""
+
+			#if self.screen == "stairs":
+			#	self.navigation_mode()
+
+			#if self.screen != "fight":
+			self.p_move(direction)
+
+		if not hasattr(type(_self), f"move_{direction}"):
+			setattr(type(_self), f"move_{direction}", move_func)
+		return getattr(_self, f"move_{direction}")
+
+	def mark_visited(self, x, y):
+		# if there is a space in the tags tkinter will split it up
+		# do not add one
+		self.map.itemconfig(
+			f"{x},{y}",
+			fill="yellow"
+		)
+		self.cur_room().visited = True
+		
+	def p_move(self, direction):
+	
+		self.mark_visited(self.player_loc[0], self.player_loc[1])
+
+		# up
+		if direction == "north" and self.player_loc[1] > 0:
+			self.player_loc[1] -= 1
+			self.map.move("player", 0, -1 * SMH)
+		# down
+		elif direction == "south" and self.player_loc[1] < DUN_H - 1:
+			self.player_loc[1] += 1
+			self.map.move("player", 0, SMH)
+		# left
+		elif direction == "west" and self.player_loc[0] > 0:
+			self.player_loc[0] -= 1
+			self.map.move("player", -1 * SMW, 0)
+		# right
+		elif direction == "east" and self.player_loc[0] < DUN_W - 1:
+			self.player_loc[0] += 1
+			self.map.move("player", SMW, 0)
+			
+		self.mark_visited(self.player_loc[0], self.player_loc[1])
+		self.cur_room().enter()
+
+	def room_info(self, event):
+		"""Give information about rooms by clicking on them"""
+
+		x, y = event.x, event.y
+		subjects = self.map.find_overlapping(
+			x - 1,
+			y - 1,
+			x + 1,
+			y + 1
+		)
+		sub = []
+		for i in subjects:
+			if self.map.type(i) == "rectangle":
+				sub.append(i)
+		if len(sub) == 1:
+			tag = self.map.gettags(sub[0])[0].split(",")
+			clicked_room = self.cur_room((int(tag[0]), int(tag[1])))
+
+			if int(tag[0]) == self.player_loc[0] and int(tag[1]) == self.player_loc[1]:
+				self.write_out("This is your current location.")
+			elif clicked_room.visited:
+				self.write_out(clicked_room.info)
+			else:
+				self.write_out("Unknown")
+
+	def remove_enemy_marker(self, x, y):
+		# remove enemy icon on map
+		# if there is a space in the tags tkinter will split it up
+		self.map.delete(
+			f"enemy{x},{y}"
+		)
+
+	def draw_enemy_marker(self, x, y):
+		# if there is a space in the tags tkinter will split it up so
+		# don't add one
+		self.map.create_oval(
+			SMW * x + SMW / 4,
+			SMH * y + SMH / 4,
+			SMW * x + SMW * 3/4,
+			SMH * y + SMH * 3/4,
+			fill="red",
+			tags=f"enemy{x},{y}"
+		)
+
+	def draw_encounter(self, icon, x, y):
+		self.map.create_image(
+			int(SMW * (x + .5)),
+			int(SMH * (y + .5)),
+			image=icon,
+			anchor="center"
+		)
+
+	def remove(self):
+		self.frame.grid_remove()
+
+	def show(self):
+		self.frame.grid(row=0, column=0)
+		self.frame.focus_set()
+
+
 
 class GUI(object):
 	"""The user interface for the game"""
 
-	def __init__(self, inven):
+	def __init__(self, inven, p_damage, p_defence, p_max_health, player_loc, cur_room):
 
 		self.screen = "navigation"
 		self.inven = inven
 
 		self.master = tk.Tk()
+		
+		self.player_loc = player_loc
 
 		# window name
 		self.master.title(string="The Dungeon")
 		self.empty_menu = tk.Menu(self.master)
 		
-		self.init_nav_scr()
+		self.nav = Navigation(
+			self.master,
+			p_max_health,
+			self.player_loc,
+			self.inventory_mode,
+			cur_room,
+			self.write_out
+		)
+		
 		self.init_inv_scr()
 		self.init_bat_scr()
 		self.init_gmo_scr()
 		
 		self.stats = MultiframeWidget(
-			{"nav": self.nav_frame, "bat": self.bat_frame},
+			{"nav": self.nav.frame, "bat": self.bat_frame},
 			tk.Message,
 			text=""
 		)
 		self.stats.widgets["nav"].grid(row=1, column=1, columnspan=2)
 		self.stats.widgets["bat"].grid(row=1, column=3)
 		
+		self.update_stats(p_damage, p_defence)
+		
 		self.out = MultiframeWidget(
-			{"nav": self.nav_frame, "bat": self.bat_frame},
+			{"nav": self.nav.frame, "bat": self.bat_frame},
 			tk.Message,
 			text="Welcome to The Dungeon. Come once, stay forever!",
 			width=W + 100
@@ -80,52 +333,6 @@ class GUI(object):
 		
 		self.navigation_mode()
 		
-
-	def init_nav_scr(self):
-	
-		self.nav_frame = tk.Frame(self.master)
-		
-		# movement & inventory button creation
-		self.b = [tk.Button(self.nav_frame) for i in range(5)]
-		
-		button_shape = {"width": 8, "height": 4}
-
-		# movement button configuation
-		self.b[0].configure(
-			text="North",
-			command=self.movement_factory("north"),
-			**button_shape
-		)
-		self.b[3].configure(
-			text="South",
-			command=self.movement_factory("south"),
-			**button_shape
-		)
-		self.b[1].configure(
-			text="West",
-			command=self.movement_factory("west"),
-			**button_shape
-		)
-		self.b[2].configure(
-			text="East",
-			command=self.movement_factory("east"),
-			**button_shape
-		)
-
-		# button placement
-		self.b[0].grid(row=2, column=1)
-		self.b[1].grid(row=3, column=0)
-		self.b[2].grid(row=3, column=2)
-		self.b[3].grid(row=4, column=1)
-		self.b[4].grid(row=1, column=0)
-
-		# health bar creation
-		self.healthbar = tk.Canvas(self.nav_frame, width=100 + 10, height=30)
-		self.healthbar.grid(row=0, column=0, columnspan=3)
-		# health bar drawing
-		self.healthbar.create_rectangle(10, 10, 10 + 100, 30)
-		
-		self.nav_bindings()
 
 	def init_inv_scr(self):
 		
@@ -180,67 +387,23 @@ class GUI(object):
 			font=font.Font(size=40)
 		)
 		self.game_over.grid()
-		
-	def player_config(self, p):
-		"""Configure the settings that require the player exist"""
 
-		self.p = p
-
-		# inventory button configuration
-		self.b[4].configure(text="Inventory", command=self.disp_in)
-
-		self.create_healthbar(p.health, p.max_health)
-
-		self.update_stats(p.damage, p.defence)
-
-	def nav_bindings(self):
-		# key bindings
-		
-		self.nav_frame.bind("<Up>", self.movement_factory("north"))
-		self.nav_frame.bind("<Down>", self.movement_factory("south"))
-		self.nav_frame.bind("<Right>", self.movement_factory("east"))
-		self.nav_frame.bind("<Left>", self.movement_factory("west"))
-
-		self.nav_frame.bind("<Button 1>", self.mouse_click)
-		
-		
-	def disp_in(self):
+	def inventory_mode(self):
 		"""Display the player's inventory"""
 
-		self.nav_frame.grid_remove()
+		self.nav.remove()
 		self.bat_frame.grid_remove()
 		
 		self.inv_frame.grid(row=0, column=0)
 		
 		self.inv_frame.focus_set()
 
-	def create_healthbar(self, health, max_health):
-		self.healthbar.create_rectangle(
-			10,
-			10,
-			10 + (100 * health / max_health),
-			30,
-			fill="green",
-			tags="navigation_healthbar"
-		)
-		self.healthbar.create_text(
-			60, 20,
-			text=f"{health}/{max_health}",
-			tags="navigation_healthbar_text"
-		)
-
-	def dungeon_config(self, dungeon, player_loc):
+	def dungeon_config(self, dungeon):
 		"""Configure settings that require that the dungeon object exist
 		
 		Also and the player location"""
-		
-		self.player_loc = player_loc
 
 		self.dungeon = dungeon
-		self.dungeon.current_floor.disp.grid(row=0, column=3, rowspan=5)
-		#self.dungeon.current_floor.create_display()
-		# may need to do current_floor.disp.focus_set()
-		self.dungeon.current_floor.disp.bind("<Button 1>", self.room_info)
 
 		self.att_b = tk.Button(
 			self.bat_frame,
@@ -260,7 +423,6 @@ class GUI(object):
 		)
 		
 		# collections of widgets
-		self.fight_widgets = [self.cbt_scr, self.att_b, self.run_b]
 		self.non_hostile_widgets = [self.inter_btn, self.leave_btn]
 	
 	def misc_config(self, items, restart):
@@ -331,7 +493,6 @@ class GUI(object):
 		elif self.screen == "battle":
 			self.nav_frame.grid(row=0, column=0)
 
-
 	def update_stats(self, damage, defence):
 		"""Update the stats for the player"""
 
@@ -339,6 +500,8 @@ class GUI(object):
 			text=f"Damage: {damage}\nDefence: {defence}"
 		)
 
+	def write_out(self, new_text):
+		self.out.config(text=new_text)
 
 	def update_healthbar(self, health, max_health):
 		"""Update the appearance of the healthbar in both the fighting screen
@@ -356,25 +519,13 @@ class GUI(object):
 			text=f"{health}/{max_health}"
 		)
 
-		self.healthbar.coords(
-			"navigation_healthbar",
-			10,
-			10,
-			10 + (100 * health / max_health),
-			30
-		)
-		self.healthbar.itemconfig(
-			"navigation_healthbar_text",
-			text=f"{health}/{max_health}"
-		)
+		self.nav.update_healthbar(health, max_health)
 
 	def navigation_mode(self):
 		"""Switch to navigation screen"""
 
 		self.bat_frame.grid_remove()
-		self.nav_frame.grid(row=0, column=0)
-		
-		self.nav_frame.focus_set()
+		self.nav.show()
 		
 		self.screen = "navigation"
 
@@ -393,7 +544,7 @@ class GUI(object):
 	def clear_screen(self):
 		"""Remove all widgets"""
 
-		self.nav_frame.grid_remove()
+		self.nav.remove()
 		self.bat_frame.grid_remove()
 		self.inv_frame.grid_remove()
 		self.master.config(menu=self.empty_menu)
@@ -404,13 +555,6 @@ class GUI(object):
 		self.screen = "game over"
 		self.clear_screen()
 		self.game_over_frame.grid(row=0, column=0)
-
-	@staticmethod
-	def mouse_click(event):
-		"""The mouse is clicked in the master window. Used to unfocus from the
-		entry widget"""
-
-		event.widget.focus()
 	
 	def inv_click(self, event):
 		
@@ -423,28 +567,12 @@ class GUI(object):
 			self.inven[index].use()
 			self.sub_from_inv(self.inven[index].name, 1)
 
-
-	# factory necessary for tkinter key binding reasons
-	def movement_factory(_self, direction):
-		"""Factory for moveing the character functions"""
-
-		def move_func(self, event=None):
-			"""Move in a direction"""
-
-			if self.screen == "stairs":
-				self.navigation_mode()
-
-			if self.screen != "fight":
-				self.p.move(direction)
-
-		if not hasattr(type(_self), f"move_{direction}"):
-			setattr(type(_self), "move_{direction}", move_func)
-		return getattr(_self, "move_{direction}")
-
-	# must be a factory because tkinter does not support passing arguments
-	# to the functions it calls
 	def buy_item_fact(self, item_name, amount=1, *args):
 		"""Factory for buying things in the shop"""
+		
+		# must be a factory because tkinter does not support passing arguments
+		# to the functions it calls
+		
 		
 		# Can not take parameters because tkinter does not support that
 		def buy_specific_item():
@@ -496,42 +624,7 @@ class GUI(object):
 
 		room = self.dungeon.current_floor[self.player_loc[0]][self.player_loc[1]]
 		return room
-		
-	def room_info(self, event):
-		"""Give information about rooms by clicking on them"""
 
-		x, y = event.x, event.y
-		subjects = self.dungeon.current_floor.disp.find_overlapping(
-			x - 1,
-			y - 1,
-			x + 1,
-			y + 1
-		)
-		sub = []
-		for i in subjects:
-			if self.dungeon.current_floor.disp.type(i) == "rectangle":
-				sub.append(i)
-		if len(sub) == 1:
-			tag = (
-				self.
-				dungeon.
-				current_floor.
-				disp.
-				gettags(sub[0])[0].
-				split(",")
-			)
-			clicked_room = (
-				self.
-				dungeon.
-				current_floor[int(tag[0])][int(tag[1])]
-			)
-
-			if int(tag[0]) == self.player_loc[0] and int(tag[1]) == self.player_loc[1]:
-				self.out.config(text="This is your current location.")
-			elif clicked_room.visited:
-				self.out.config(text=clicked_room.info)
-			else:
-				self.out.config(text="Unknown")
 
 	def flee(self):
 		"""Leave a fight without winning or losing"""
@@ -540,53 +633,14 @@ class GUI(object):
 		if chance > 50:
 			self.navigation_mode()
 			# create an icon for an enemy the player knows about
-			# if there is a space in the tags tkinter will split it up so
-			# don't add one
-			self.dungeon.current_floor.disp.create_oval(
-				SMW * self.player_loc[0] + SMW / 4,
-				SMH * self.player_loc[1] + SMH / 4,
-				SMW * self.player_loc[0] + SMW * 3/4,
-				SMH * self.player_loc[1] + SMH * 3/4,
-				fill="red",
-				tags=f"enemy{str(self.player_loc[0])},{str(self.player_loc[1])}"
-			)
+			
+			self.nav.draw_enemy_marker(self.player_loc[0], self.player_loc[1])
+			
 			self.out.config(text="You got away.")
 		else:
 			self.cur_room().en.attack()
 			self.out.config(text="You couldn't get away.")
 
-	@staticmethod
-	def input_analysis(s):
-		"""Analyze the input the the text box to find out what the command is"""
-
-		command = general_subject = tier = None
-		item = s.lower().strip()
-
-		commands = ("unequip", "equip", "use")
-
-		for c in commands:
-			if item.startswith(c):
-				command = c
-				subject = item[len(c):].strip()
-				break
-		else:
-			subject = item
-
-		#m = match("tier ([0-9]+) ([a-z_][a-z0-9_]*)", subject)
-		if m := match("tier ([0-9]+) ([a-z_][a-z0-9_]*)", subject):
-			tier = m.group(1)
-			general_subject = m.group(2)
-		else:
-			general_subject = subject
-
-
-		data = {
-			"command": command,
-			"subject": subject,
-			"general_subject": general_subject,
-			"tier": tier,
-		}
-		return data
 # END
 
 

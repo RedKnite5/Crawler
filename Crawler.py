@@ -28,8 +28,6 @@ from config import *
 
 # fix all issues labeled: 'BUG:'
 
-monsters_killed = 0
-
 
 class Dungeon(object):
 	def __init__(self):
@@ -90,40 +88,14 @@ class Floor(object):
 			center_room.type = UP_STAIRS_TYPE
 			center_room.init2(dest=upstairs)
 
-		self.disp = tk.Canvas(gui.nav_frame, width=W, height=H)
-		self.create_display()
+		#self.disp = tk.Canvas(gui.nav_frame, width=W, height=H)
+		#self.create_display()
 
 	def __getitem__(self, key):
 		"""Index the floor"""
 
 		return self.dun[key]
 
-	def create_display(self):
-		"""Create the map for the player to see"""
-
-		# display creation
-		for i in range(DUN_W):
-			for k in range(DUN_H):
-				# if there is a space in the tags tkinter will split it up
-				# do not add one
-				self.disp.create_rectangle(
-					SMW * i,
-					SMH * k,
-					SMW * (i + 1),
-					SMH * (k + 1),
-					fill="grey",
-					tags=f"{str(i)},{str(k)}"
-				)
-
-		# player icon creation
-		self.disp.create_oval(
-			SMW * p.loc[0],
-			SMH * p.loc[1],
-			SMW * p.loc[0] + SMW,
-			SMH * p.loc[1] + SMH,
-			fill="green",
-			tags="player"
-		)
 
 
 class Room(object):
@@ -290,45 +262,6 @@ class Player(object):
 		self.inven = inventory
 		self.equipment = {}
 		self.status = None
-		
-
-	def move(self, direction):
-		"""Player movement on map function"""
-
-		# this is mostly redundent except for the starting room
-		dungeon.current_floor[self.loc[0]][self.loc[1]].visited = True
-		# if there is a space in the tags tkinter will split it up
-		# do not add one
-		dungeon.current_floor.disp.itemconfig(
-			f"{str(self.loc[0])},{str(self.loc[1])}",
-			fill="yellow"
-		)
-
-		# up
-		if direction == "north" and self.loc[1] > 0:
-			self.loc[1] -= 1
-			dungeon.current_floor.disp.move("player", 0, -1 * SMH)
-		# down
-		elif direction == "south" and self.loc[1] < DUN_H - 1:
-			self.loc[1] += 1
-			dungeon.current_floor.disp.move("player", 0, SMH)
-		# left
-		elif direction == "west" and self.loc[0] > 0:
-			self.loc[0] -= 1
-			dungeon.current_floor.disp.move("player", -1 * SMW, 0)
-		# right
-		elif direction == "east" and self.loc[0] < DUN_W - 1:
-			self.loc[0] += 1
-			dungeon.current_floor.disp.move("player", SMW, 0)
-
-		dungeon.current_floor[self.loc[0]][self.loc[1]].enter()
-
-		dungeon.current_floor[self.loc[0]][self.loc[1]].visited = True
-		# if there is a space in the tags tkinter will split it up
-		dungeon.current_floor.disp.itemconfig(
-			f"{str(self.loc[0])},{str(self.loc[1])}",
-			fill="yellow"
-		)
 
 
 	def search_inventory(self, item, searching="inventory"):
@@ -409,12 +342,7 @@ class Encounter(object):
 		"""Start the encounter"""
 
 		if isinstance(self, Stairs):
-			dungeon.current_floor.disp.create_image(
-				int(SMW * (p.loc[0] + .5)),
-				int(SMH * (p.loc[1] + .5)),
-				image=cur_room().en.icon,
-				anchor="center"
-			)
+			gui.nav.draw_encounter(cur_room().en.icon, p.loc[0], p.loc[1])
 
 		gui.screen = "encounter"
 		gui.cbt_scr.delete("all")
@@ -536,14 +464,13 @@ class Enemy(Encounter):
 
 		return Gold(amount=self.max_health // 3 + self.damage // 2 + 2)
 
-	# noinspection PyMethodOverriding
 	def meet(self):
 		"""Format screen for a fight"""
 
 		super().meet()
 
 		gui.screen = "fight"
-		gui.nav_frame.grid_remove()
+		gui.nav.remove()
 		gui.bat_frame.grid(row=0, column=0)
 
 		self.fight()
@@ -620,14 +547,10 @@ class Enemy(Encounter):
 		hold = "You got: \n"
 		# display loot
 		for key, val in self.loot.items():
-			hold += f"{str(key).title()}: {str(val.amount)}\n"
+			hold += f"{str(key).title()}: {val.amount}\n"
 		gui.out.config(text=hold[:-1])
 
-		# remove enemy icon on map
-		# if there is a space in the tags tkinter will split it up
-		dungeon.current_floor.disp.delete(
-			f"enemy{str(p.loc[0])},{str(p.loc[1])}"
-		)
+		gui.nav.remove_enemy_marker(p.loc[0], p.loc[1])
 		cur_room().info = "This is an empty room."
 
 		# take loot
@@ -708,11 +631,11 @@ class UsableItem(CollectableItem):
 		if p.inven[self.name].amount <= 0:
 			raise UseItemWithZeroError(f"You have 0 {inv_name}s")
 
-		gui.out.config(text="Used " + self.name.title())
-
 		# should later change how consumable things work
 		# make not everything consumable? or add durability
 		#p.inven[self.name] -= 1
+
+		gui.out.config(text="Used " + self.name.title())
 
 
 class EquipableItem(CollectableItem):
@@ -910,10 +833,16 @@ max_use_body_part = {
 }
 
 
-def cur_room():
+def cur_room(xy=None):
 	"""Return the Room object that they player is currently in"""
+	
+	if xy is None:
+		x = p.loc[0]
+		y = p.loc[1]
+	else:
+		x, y = xy
 
-	room = dungeon.current_floor[p.loc[0]][p.loc[1]]
+	room = dungeon.current_floor[x][y]
 	return room
 
 
@@ -921,29 +850,28 @@ def restart():
 	"""Reset all the values of the game and prepare to start over"""
 
 	global dungeon, p, monsters_killed, gui
-
-	gui.master.destroy()
+	
+	del inventory
 	del gui
+	del p
+	del dungeon
+	
+	monsters_killed = 0
+	
+	inventory = Inventory()
 
-	# reset images for TKimage to work
-	Goblin.reset()
-	Slime.reset()
+	p = Player(inventory)
+	gui = GUI(inventory, p.damage, p.defence, p.max_health, p.loc, cur_room)
 
-	gui = GUI()
 	buyable_items = (Sword, HealthPot, armor_factory(1))
 	gui.misc_config(buyable_items, restart)
 
-	del p
-	p = Player()
-	gui.player_config(p)
+	get_loot({"gold": Gold(amount=STARTING_GOLD)})
 
-	del dungeon
 	dungeon = Dungeon()
 	gui.dungeon_config(dungeon)
 
-	dungeon.current_floor.disp.focus()
-
-	monsters_killed = 0
+	p.floor = dungeon.current_floor
 
 	gui.master.mainloop()
 
@@ -965,20 +893,22 @@ def file_path(file):
 if __name__ == "__main__":
 	print("\n" * 3)
 	
+	monsters_killed = 0
+	
 	inventory = Inventory()
 
-	gui = GUI(inventory)
+	p = Player(inventory)
+	gui = GUI(inventory, p.damage, p.defence, p.max_health, p.loc, cur_room)
 
 	buyable_items = (Sword, HealthPot, armor_factory(1))
 	gui.misc_config(buyable_items, restart)
 
-	p = Player(inventory)  # player creation
 	get_loot({"gold": Gold(amount=STARTING_GOLD)})
 
-	gui.player_config(p)
+	#gui.player_config(p)
 
 	dungeon = Dungeon()
-	gui.dungeon_config(dungeon, p.loc)
+	gui.dungeon_config(dungeon)
 
 	p.floor = dungeon.current_floor
 
