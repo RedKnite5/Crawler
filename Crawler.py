@@ -215,7 +215,7 @@ class CollectableItem(object):
 
 	# math ops are here to allow manipulation of the
 	# amounts without too much extra work
-	def __add__(self, other) -> type['CollectableItem']:
+	def __add__(self, other) -> 'CollectableItem':
 		if isinstance(other, type(self)):
 			return type(self)(self.amount + other.amount)
 		else:
@@ -228,7 +228,7 @@ class CollectableItem(object):
 			self.amount += other
 		return self
 
-	def __sub__(self, other) -> type['CollectableItem']:
+	def __sub__(self, other) -> 'CollectableItem':
 		if isinstance(other, type(self)):
 			return type(self)(self.amount - other.amount)
 		else:
@@ -247,7 +247,7 @@ class CollectableItem(object):
 	def __bool__(self) -> bool:
 		return bool(self.amount)
 
-	def __neg__(self) -> type['CollectableItem']:
+	def __neg__(self) -> 'CollectableItem':
 		return type(self)(amount=-self.amount)
 
 
