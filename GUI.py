@@ -331,7 +331,6 @@ class GUI(object):
 		self.master.config(menu=self.shop)
 		
 		self.navigation_mode()
-		
 
 	def init_inv_scr(self):
 		
@@ -424,11 +423,11 @@ class GUI(object):
 		# collections of widgets
 		self.non_hostile_widgets = [self.inter_btn, self.leave_btn]
 	
-	def misc_config(self, items, restart):
+	def misc_config(self, items: tuple, restart) -> None:
 		"""Configure settings that require buyable_items or the restart
 		function
 		"""
-		self.buyable_items = {item.name: item for item in items}
+		self.buyable_items = {item().name: item for item in items}
 		
 		for i in self.buyable_items:
 			# actual things you can buy
@@ -592,7 +591,7 @@ class GUI(object):
 						# replace item in list of buyable items
 						del self.buyable_items[item_name]
 						new_item_cls = item.factory(item.tier + 1)
-						self.buyable_items[new_item_cls.name] = new_item_cls
+						self.buyable_items[new_item_cls().name] = new_item_cls
 
 						# replace item in the menu
 						self.stock.delete(
@@ -602,11 +601,11 @@ class GUI(object):
 						)
 						self.stock.add_command(
 							label=(
-								new_item_cls.name.title()
+								new_item_cls().name.title()
 								+ ": "
 								+ str(new_item_cls().cost)
 							),
-							command=self.buy_item_fact(new_item_cls.name)
+							command=self.buy_item_fact(new_item_cls().name)
 						)
 				else:
 					self.out.config(

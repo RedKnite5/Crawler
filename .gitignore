@@ -1,9 +1,11 @@
 __pycache__
 nppBackup
-venv/
+venv
 .idea
 .ropeproject
+.mypy_cache
 crawl.code-workspace
 Crawler.srctrlbm
 Crawler.srctrldb
 Crawler.srctrlprj
+test.py

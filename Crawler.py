@@ -198,8 +198,8 @@ class CollectableItem(object):
 
 	def __init__(self, amount: int = 1, filename: str = "ImageNotFound.png", *args, **kwargs) -> None:
 		self.amount: int = amount
-		self.name: str = "undefined_collectable_item"
 		self.plurale: bool = False
+		self.name: str = "undefined_collectable_item"
 		
 		# if a refereance is not kept to ImageTk.PhotoImage(image) it
 		# is garbage collected and will not display
@@ -221,7 +221,7 @@ class CollectableItem(object):
 		else:
 			return type(self)(self.amount + other)
 
-	def __iadd__(self, other):
+	def __iadd__(self, other) -> 'CollectableItem':
 		if isinstance(other, type(self)):
 			self.amount += other.amount
 		else:
@@ -326,7 +326,7 @@ class Encounter(object):
 		PhotoImage does not get called before tk has been initialised.
 		"""
 		
-		self.name: str = "Empty"
+		self.name: str = "Encounter"
 		
 		if not hasattr(type(self), "image"):
 			image = Image.open(file_path(filename))
@@ -361,9 +361,6 @@ class Encounter(object):
 	def meet(self, disp: str = "NW") -> None:
 		"""Start the encounter"""
 
-		if isinstance(self, Stairs):
-			gui.nav.draw_encounter(cur_room().en.icon, p.loc[0], p.loc[1])
-
 		gui.screen = "encounter"
 		gui.cbt_scr.delete("all")
 		self.show_ico(place=disp)
@@ -384,11 +381,11 @@ class Empty(Encounter):
 	image = None
 
 	# noinspection PyMissingConstructor
-	def __init__(self):
+	def __init__(self) -> None:
 		pass
 
 	# noinspection PyMethodOverriding
-	def meet(self):
+	def meet(self, disp: str = "") -> None:
 		super().meet()
 		self.leave()
 
@@ -396,6 +393,7 @@ class Empty(Encounter):
 class Stairs(Encounter):
 	"""Stairs to another Floor"""
 	
+	image: ImageTk.PhotoImage
 	icon: ImageTk.PhotoImage
 
 	def __init__(self, location: dict[str, int], dist: int = +1, to=None) -> None:
@@ -406,7 +404,7 @@ class Stairs(Encounter):
 			type(self).image = ImageTk.PhotoImage(image)
 
 			# icon of stairs
-			icon = Image.open(file_path("stairs_icon.png"))
+			icon: ImageTk.PhotoImage = Image.open(file_path("stairs_icon.png"))
 			icon = ImageOps.mirror(
 				icon.resize((SMW // 2, SMH // 2))
 			)
@@ -433,7 +431,7 @@ class Stairs(Encounter):
 		p.floor = dungeon.current_floor
 		p.loc[:] = (self.to["x"], self.to["y"])
 
-		gui.navigation_widgets[0] = dungeon.current_floor.disp
+		#gui.navigation_widgets[0] = dungeon.current_floor.disp
 		gui.navigation_mode()
 
 		dungeon.current_floor.disp.coords("player",
@@ -443,10 +441,12 @@ class Stairs(Encounter):
 			 SMH * p.loc[1] + SMH)
 		)
 
-	def meet(self, disp: str = "center"):
+	def meet(self, disp: str = "center") -> None:
 		"""Dislpay the stairs image"""
 
 		super().meet(disp)
+		
+		gui.nav.draw_encounter(self.icon, p.loc[0], p.loc[1])
 
 		gui.screen = "stairs"
 		gui.clear_screen()
@@ -466,13 +466,11 @@ class Stairs(Encounter):
 class Enemy(Encounter):
 	"""General enemy class. Includes set up for fights, attacking, being
 	attacked, and returning loot"""
-	
-	name: str = "enemy"
 
 	def __init__(self, filename="ImageNotFound.png") -> None:
 
 		super().__init__(filename)
-
+		self.name: str = "enemy"
 		self.alive: bool = True
 		self.max_health: int = 1
 		self.health: int = 1
@@ -584,13 +582,12 @@ class Enemy(Encounter):
 
 class Goblin(Enemy):
 	"""Common weak enemy"""
-	
-	name: str = "goblin"
 
 	def __init__(self) -> None:
 		"""Set stats and loot"""
 
 		super().__init__(filename="TypicalGoblin.png")
+		self.name: str = "goblin"
 		self.max_health = rand.randint(30, 40) + monsters_killed // 2
 		self.health = self.max_health
 		self.damage = rand.randint(3, 6) + monsters_killed // 5
@@ -605,12 +602,11 @@ class Goblin(Enemy):
 class Slime(Enemy):
 	"""Higher level enemy"""
 
-	name: str = "slime"
-
 	def __init__(self) -> None:
 		"""Set stats and loot"""
 
 		super().__init__(filename="SlimeMonster.png")
+		self.name: str = "slime"
 		self.max_health = rand.randint(50, 70) + (3 * monsters_killed) // 2
 		self.health = self.max_health
 		self.damage = rand.randint(10, 15) + monsters_killed // 4
@@ -624,11 +620,10 @@ class Slime(Enemy):
 class Drider(Enemy):
 	"""A enemy with medium health, but high attack and it can poison you"""
 
-	name = "drider"
-
 	def __init__(self) -> None:
 		super().__init__(filename="Drider.png")
-
+		
+		self.name: str = "drider"
 		self.max_health = rand.randint(40, 60) + monsters_killed
 		self.health = self.max_health
 		self.damage = rand.randint(20, 30) + monsters_killed // 2
@@ -640,10 +635,10 @@ class Drider(Enemy):
 class UsableItem(CollectableItem):
 	"""An item that can be used and consumed on use"""
 
-	name = "undefined_usable_item"
-
 	def __init__(self, *args, **kwargs) -> None:
 		super().__init__(*args, **kwargs)
+		
+		self.name: str = "undefined_usable_item"
 
 	def use(self) -> None:
 		"""Use the item for what ever purpose it has"""
@@ -660,12 +655,11 @@ class UsableItem(CollectableItem):
 
 class EquipableItem(UsableItem):
 	"""An item that can be equiped and unequiped"""
-	
-	name: str = "undefined_equipable_item"
 
 	def __init__(self, *args, **kwargs) -> None:
 		# *args and **kwargs allow other agruments to be passed
 		super().__init__(*args, **kwargs)
+		self.name: str = "undefined_equipable_item"
 		self.space: tuple = (None, float("inf"))
 		# would prefer for this to be a temp variable
 		self.equiped: bool = False
@@ -715,12 +709,11 @@ class EquipableItem(UsableItem):
 class BuyableItem(CollectableItem):
 	"""An item that is sold in the shop"""
 
-	tiered: bool = False
-	name: str = "undefined_buyable_item"
-
 	def __init__(self, *args, **kwargs) -> None:
 		super().__init__(*args, **kwargs)
 		self.cost: int = 0
+		self.tiered: bool = False
+		self.name: str = "undefined_buyable_item"
 
 	def __str__(self) -> str:
 		return self.name
@@ -734,13 +727,12 @@ class BuyableItem(CollectableItem):
 class HealthPot(UsableItem, BuyableItem):
 	"""An item that heals the player"""
 
-	name: str = "health potion"
-
 	def __init__(self, *args, **kwargs) -> None:
 		super().__init__(filename="healthpotion.png", *args, **kwargs)
-		self.cost = int(100 * COST_MUL)
+		self.cost: int = int(100 * COST_MUL)
+		self.name: str = "health potion"
 
-	def use(self):
+	def use(self) -> None:
 		"""Restore health"""
 
 		super().use()
@@ -754,11 +746,12 @@ class HealthPot(UsableItem, BuyableItem):
 class SlimeHeart(UsableItem):
 	"""An item that increases the player's max HP"""
 
-	def __init__(self, *args, **kwargs):
+	def __init__(self, *args, **kwargs) -> None:
 		super().__init__(*args, **kwargs)
-		self.name = "slime heart"
+		
+		self.name: str = "slime heart"
 
-	def use(self):
+	def use(self) -> None:
 		"""Increase max health"""
 
 		super().use()
@@ -772,15 +765,13 @@ class SlimeHeart(UsableItem):
 class Sword(BuyableItem, EquipableItem):
 	"""A basic weapon"""
 
-	name = "sword"
-
-	def __init__(self, *args, **kwargs):
+	def __init__(self, *args, **kwargs) -> None:
 		super().__init__(filename="sword.png", *args, **kwargs)
-		self.name = "sword"
+		self.name: str = "sword"
 		self.cost = int(50 * COST_MUL)
 		self.space = ("1 hand", 2)
 
-	def equip(self):
+	def equip(self) -> None:
 		"""Equip the sword"""
 
 		super().equip()
@@ -790,7 +781,7 @@ class Sword(BuyableItem, EquipableItem):
 			self.equiped = False
 			gui.update_stats(p.damage, p.defence)
 
-	def unequip(self):
+	def unequip(self) -> None:
 		"""Remove the sword"""
 
 		super().unequip()
@@ -802,28 +793,26 @@ class Sword(BuyableItem, EquipableItem):
 
 
 # needed to create different tiers of armor dynamically
-def armor_factory(tier):
+def armor_factory(tier: int) -> type[CollectableItem]:
 	"""Create armor class with the desired tier"""
-
 
 	class Armor(BuyableItem, EquipableItem):
 		"""Armor class that gives defence"""
-
-		name = f"tier {tier} armor"
+		
 		# here so that a higher tier class can be generated from this one
 		factory = staticmethod(armor_factory)
 
 		# what if kwargs contains "tier=1.2"? I don't know what to
 		# do about that
-		def __init__(self, *args, **kwargs):
+		def __init__(self, *args, **kwargs) -> None:
 			super().__init__(*args, **kwargs)
-			self.tier = tier
-			self.name = f"tier {tier} armor"
+			self.name: str = f"tier {tier} armor"
+			self.tier: int = tier
 			self.cost = int(COST_MUL * 100 * self.tier)
 			self.space = ("body", 1)
 			self.plurale = True
 
-		def equip(self):
+		def equip(self) -> None:
 			"""Wear the armor"""
 
 			super().equip()
@@ -832,7 +821,7 @@ def armor_factory(tier):
 				self.equiped = False  # reset this variable
 				gui.update_stats(p.damage, p.defence)
 
-		def unequip(self):
+		def unequip(self) -> None:
 			"""Take off the armor"""
 
 			super().unequip()
@@ -857,7 +846,7 @@ max_use_body_part = {
 }
 
 
-def cur_room(xy=None):
+def cur_room(xy=None) -> Room:
 	"""Return the Room object that they player is currently in"""
 	
 	if xy is None:
@@ -870,7 +859,7 @@ def cur_room(xy=None):
 	return room
 
 
-def restart():
+def restart() -> None:
 	"""Reset all the values of the game and prepare to start over"""
 
 	global dungeon, p, monsters_killed, gui, inventory
@@ -900,7 +889,7 @@ def restart():
 	gui.master.mainloop()
 
 
-def get_loot(loot: dict):
+def get_loot(loot: dict) -> None:
 	for key, item in loot.items():
 		#if key in p.inven:
 		#	p.inven[key] += item
@@ -909,11 +898,11 @@ def get_loot(loot: dict):
 		gui.add_to_inv(item)
 
 
-def file_path(file):
+def file_path(file: str) -> str:
 	dirname = os.path.dirname(__file__)
 	return os.path.join(dirname, file)
 
-def normpdf(x, mean, sd):
+def normpdf(x: float, mean: float, sd: float) -> float:
     var = float(sd)**2
     denom = (2*pi*var)**.5
     num = exp(-(float(x)-float(mean))**2/(2*var))
