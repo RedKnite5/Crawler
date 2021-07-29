@@ -196,7 +196,7 @@ class CollectableItem(object):
 	
 	image: ImageTk.PhotoImage
 
-	def __init__(self, amount: int = 1, filename: str = "ImageNotFound.png", *args, **kwargs) -> None:
+	def __init__(self, amount: int = 1, filename: str = "ImageNotFound.png") -> None:
 		self.amount: int = amount
 		self.plurale: bool = False
 		self.name: str = "undefined_collectable_item"
@@ -210,12 +210,12 @@ class CollectableItem(object):
 			type(self).image = ImageTk.PhotoImage(image)
 
 	def __str__(self) -> str:
-		return f"{self.amount} {self.name}"
 		#return self.name
+		return f"{self.amount} {self.name}"
 
 	# math ops are here to allow manipulation of the
 	# amounts without too much extra work
-	def __add__(self, other):
+	def __add__(self, other) -> type['CollectableItem']:
 		if isinstance(other, type(self)):
 			return type(self)(self.amount + other.amount)
 		else:
@@ -228,13 +228,13 @@ class CollectableItem(object):
 			self.amount += other
 		return self
 
-	def __sub__(self, other):
+	def __sub__(self, other) -> type['CollectableItem']:
 		if isinstance(other, type(self)):
 			return type(self)(self.amount - other.amount)
 		else:
 			return type(self)(self.amount - other)
 
-	def __isub__(self, other):
+	def __isub__(self, other) -> 'CollectableItem':
 		if isinstance(other, type(self)):
 			self.amount -= other.amount
 		else:
@@ -247,7 +247,7 @@ class CollectableItem(object):
 	def __bool__(self) -> bool:
 		return bool(self.amount)
 
-	def __neg__(self):
+	def __neg__(self) -> type['CollectableItem']:
 		return type(self)(amount=-self.amount)
 
 
