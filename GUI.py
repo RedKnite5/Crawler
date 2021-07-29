@@ -8,10 +8,11 @@ import tkinter as tk
 from tkinter import font
 from re import match
 from random import randint
+import math
 
-from PIL import Image
-from PIL import ImageOps
-from PIL import ImageTk
+from PIL import Image     # type: ignore
+from PIL import ImageOps  # type: ignore
+from PIL import ImageTk   # type: ignore
 
 
 from errors import *
@@ -19,13 +20,13 @@ from config import *
 
 
 class MultiframeWidget(object):
-	def __init__(self, frames, widget, *args, **kwargs):
+	def __init__(self, frames: dict[str, tk.Frame], widget: type[tk.Widget], *args, **kwargs):
 		self.widgets = {}
 		for name, frame in frames.items():
 			self.widgets[name] = widget(frame, *args, **kwargs)
 
 	def __getattr__(self, name):
-		def f(*args, **kwargs):
+		def f(*args, **kwargs) -> list:
 			ret = []
 			for widget in self.widgets.values():
 				ret.append(getattr(widget, name)(*args, **kwargs))
@@ -34,7 +35,7 @@ class MultiframeWidget(object):
 
 
 class Navigation(object):
-	def __init__(self, master, p_max_health, p_loc, inv_mode, cur_room, write_out):
+	def __init__(self, master, p_max_health: int, p_loc, inv_mode, cur_room, write_out):
 	
 		self.frame = tk.Frame(master)
 		
@@ -44,8 +45,6 @@ class Navigation(object):
 		
 		# movement & inventory button creation
 		self.b = [tk.Button(self.frame) for i in range(5)]
-		
-		#button_shape = {"width": 8, "height": 4}
 		
 		directions = ["north", "west", "east", "south"]
 		for index, dir in enumerate(directions):
@@ -277,9 +276,9 @@ class Navigation(object):
 class GUI(object):
 	"""The user interface for the game"""
 
-	def __init__(self, inven, p_damage, p_defence, p_max_health, player_loc, cur_room):
+	def __init__(self, inven, p_damage: int, p_defence: int, p_max_health: int, player_loc, cur_room):
 
-		self.screen = "navigation"
+		self.screen: str = "navigation"
 		self.inven = inven
 
 		self.master = tk.Tk()
@@ -346,7 +345,7 @@ class GUI(object):
 		
 		self.inv_scr.bind("<Button 1>", self.inv_click)
 		
-		self.inv_images = {}
+		self.inv_images: dict[str, list[int]] = {}
 		
 		for w in range(INV_WIDTH):
 			for h in range(INV_HEIGHT):
@@ -450,21 +449,21 @@ class GUI(object):
 		self.restart_button.lift()
 
 	def add_to_inv(self, item):
-		index = self.inven.add(item.name, item)
-		total = self.inven[index].amount
+		index: int = self.inven.add(item.name, item)
+		total: int = self.inven[index].amount
 		new_text = str(total) if total > 1 else ""
 		
-		if index not in self.inv_images:
+		if item.name not in self.inv_images:
 			x  = index % INV_WIDTH
 			y = (index % (INV_WIDTH * INV_HEIGHT)) // INV_WIDTH
-			icon_id = self.inv_scr.create_image(
+			icon_id: int = self.inv_scr.create_image(
 				IBW * x + 3,
 				IBH * y + 3,
 				image=item.image,
 				anchor="nw"
 			)
 			
-			text_id = self.inv_scr.create_text(
+			text_id: int = self.inv_scr.create_text(
 				IBW * (x + 1) - 3,
 				IBH * (y + 1) - 1,
 				text=new_text,
@@ -475,7 +474,7 @@ class GUI(object):
 		else:
 			self.inv_scr.itemconfig(self.inv_images[item.name][1], text=new_text)
 	
-	def sub_from_inv(self, item_name, amount):
+	def sub_from_inv(self, item_name: str, amount: int):
 		total = self.inven.sub(item_name, amount)
 		
 		if total <= 0:
@@ -493,17 +492,17 @@ class GUI(object):
 		elif self.screen == "battle":
 			self.nav_frame.grid(row=0, column=0)
 
-	def update_stats(self, damage, defence):
+	def update_stats(self, damage: int, defence: int):
 		"""Update the stats for the player"""
 
 		self.stats.config(
 			text=f"Damage: {damage}\nDefence: {defence}"
 		)
 
-	def write_out(self, new_text):
+	def write_out(self, new_text: str):
 		self.out.config(text=new_text)
 
-	def update_healthbar(self, health, max_health):
+	def update_healthbar(self, health: int, max_health: int):
 		"""Update the appearance of the healthbar in both the fighting screen
 		and the navigation screen"""
 
@@ -567,12 +566,8 @@ class GUI(object):
 			self.inven[index].use()
 			self.sub_from_inv(self.inven[index].name, 1)
 
-	def buy_item_fact(self, item_name, amount=1, *args):
+	def buy_item_fact(self, item_name: str, amount: int = 1, *args):
 		"""Factory for buying things in the shop"""
-		
-		# must be a factory because tkinter does not support passing arguments
-		# to the functions it calls
-		
 		
 		# Can not take parameters because tkinter does not support that
 		def buy_specific_item():
@@ -624,7 +619,6 @@ class GUI(object):
 
 		room = self.dungeon.current_floor[self.player_loc[0]][self.player_loc[1]]
 		return room
-
 
 	def flee(self):
 		"""Leave a fight without winning or losing"""

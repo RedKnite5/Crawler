@@ -6,12 +6,12 @@ import random as rand
 import tkinter as tk
 from re import match
 from functools import total_ordering
-from math import atan, pi
+from math import atan, pi, exp
 import os
 
-from PIL import Image
-from PIL import ImageOps
-from PIL import ImageTk
+from PIL import Image     # type: ignore
+from PIL import ImageOps  # type: ignore
+from PIL import ImageTk   # type: ignore
 
 from GUI import GUI
 from inven import Inventory
@@ -30,18 +30,18 @@ from config import *
 
 
 class Dungeon(object):
-	def __init__(self):
-		self.floors = [Floor(0)]
-		self.floor_num = 0
+	def __init__(self) -> None:
+		self.floors: list['Floor'] = [Floor(0)]
+		self.floor_num: int = 0
 
-	def __getattr__(self, attr):
+	def __getattr__(self, attr: str):
 		if attr == "current_floor":
 			return self.floors[self.floor_num]
 
-	def __getitem__(self, index):
+	def __getitem__(self, index: int) -> 'Floor':
 		return self.floors[index]
 
-	def gen_floor(self, up_stair_location, level="+1"):
+	def gen_floor(self, up_stair_location: dict[str, int], level="+1") -> None:
 		if level[0] == "+" and level[1:].isdigit():
 			new_floor_num = self.floor_num + int(level[1:])
 		else:
@@ -49,7 +49,7 @@ class Dungeon(object):
 
 		self.floors.append(Floor(new_floor_num, up_stair_location))
 
-	def check_all_rooms(self):
+	def check_all_rooms(self) -> bool:
 		"""Check if all rooms have been visited"""
 
 		for row in self.current_floor:
@@ -62,15 +62,15 @@ class Dungeon(object):
 class Floor(object):
 	"""Whole floor of the dungeon"""
 
-	def __init__(self, floor, upstairs=None):
+	def __init__(self, floor: int, upstairs=None) -> None:
 		"""Create a floor and populate it"""
 
 		self.stairs = False
 
-		self.floor_num = floor
-		self.dun = []
+		self.floor_num: int = floor
+		self.dun: list[list['Room']] = []
 		for i in range(DUN_W):  # map generation
-			column = []
+			column: list['Room'] = []
 			for k in range(DUN_H):
 				column.append(Room(int(
 					(abs(i - (DUN_W - 1) // 2)
@@ -79,7 +79,7 @@ class Floor(object):
 					{"x": i, "y": k, "floor": self.floor_num}))
 			self.dun.append(column)
 
-		center_room = self.dun[(DUN_W - 1) // 2][(DUN_H - 1) // 2]
+		center_room: 'Room' = self.dun[(DUN_W - 1) // 2][(DUN_H - 1) // 2]
 
 		if self.floor_num == 0:
 			center_room.type = STARTING_ROOM_TYPE
@@ -88,48 +88,61 @@ class Floor(object):
 			center_room.type = UP_STAIRS_TYPE
 			center_room.init2(dest=upstairs)
 
-		#self.disp = tk.Canvas(gui.nav_frame, width=W, height=H)
-		#self.create_display()
-
-	def __getitem__(self, key):
+	def __getitem__(self, key: int) -> list['Room']:
 		"""Index the floor"""
 
 		return self.dun[key]
 
 
-
 class Room(object):
 	"""Class for individual cells with encounters in them."""
 
-	def __init__(self, difficulty, location):
+	def __init__(self, difficulty: int, location: dict[str, int]) -> None:
 		"""Room creation"""
 
-		self.location = location
-		self.visited = False
+		self.type: int
+		self.info: str
+		self.en: Encounter
+		self.location: dict[str, int] = location
+		self.visited: bool = False
+		
+		weights: list[float] = []
+		
+		#goblin
+		weights.append(normpdf(difficulty, 600, 200))
+		
+		#slime
+		weights.append(normpdf(difficulty, 1050, 200))
+		
+		#drider
+		weights.append(normpdf(difficulty, 1500, 200))
+		
+		# Goblin, Slime, Drider
+		enemy_types = [101, 102, 103]
+		
 		if ENEMIES:
-			self.type = int(rand.gauss(difficulty + 400, 140))
-			if self.type < 1:
-				self.type = 1
+			self.type = rand.choices(enemy_types, weights=weights)[0]
 		else:
-			self.type = NON_VIOLENT_ENC_CUTOFF
+			self.type = 100
 		self.init2()
 
 	# This function allows variable to be reset without doing them all
-	# manually
-	def init2(self, **kwargs):
+	# manually, used for stairs and some other stuff
+	def init2(self, **kwargs) -> None:
 		"""Set various variables that may need to be updated all together"""
-
+		
 		# enemy generation
-		if DRIDER_CUTOFF <= self.type:
+		if self.type == 103:
 			self.en = Drider()
-		elif SLIME_CUTOFF <= self.type:
+		elif self.type == 102:
 			self.en = Slime()
-		elif GOB_CUTOFF <= self.type:
+		elif self.type == 101:
 			self.en = Goblin()
-		else:
+		elif self.type == 100:
 			self.info = "This is an empty room"
 			self.en = Empty()
-		if self.type > NON_VIOLENT_ENC_CUTOFF:
+		
+		if self.type > 100:
 			self.info = f"This is a room with a {self.en.name}"
 
 		if self.type == STARTING_ROOM_TYPE:
@@ -153,15 +166,15 @@ class Room(object):
 			)
 
 	@property
-	def floor(self):
+	def floor(self) -> Floor:
 		"""Return the floor that this room is on"""
 		return dungeon[self.location["floor"]]
 
-	def enter(self):
+	def enter(self) -> None:
 		"""Set up to enter a room"""
 
 		self.visited = True
-		floor_finished = dungeon.check_all_rooms()
+		floor_finished: bool = dungeon.check_all_rooms()
 
 		if floor_finished and not self.floor.stairs:
 			# make this room stairs down to the next floor
@@ -180,11 +193,13 @@ class Room(object):
 @total_ordering
 class CollectableItem(object):
 	"""Class for any item that can be gained by the player."""
+	
+	image: ImageTk.PhotoImage
 
-	def __init__(self, amount=1, filename="ImageNotFound.png", *args):
-		self.amount = amount
-		self.name = "undefined_collectable_item"
-		self.plurale = False
+	def __init__(self, amount: int = 1, filename: str = "ImageNotFound.png", *args, **kwargs) -> None:
+		self.amount: int = amount
+		self.name: str = "undefined_collectable_item"
+		self.plurale: bool = False
 		
 		# if a refereance is not kept to ImageTk.PhotoImage(image) it
 		# is garbage collected and will not display
@@ -194,7 +209,7 @@ class CollectableItem(object):
 			image = image.resize((IBW - 5, IBH - 5))
 			type(self).image = ImageTk.PhotoImage(image)
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return f"{self.amount} {self.name}"
 		#return self.name
 
@@ -226,10 +241,10 @@ class CollectableItem(object):
 			self.amount -= other
 		return self
 
-	def __lt__(self, other):
+	def __lt__(self, other) -> bool:
 		return self.amount < other
 
-	def __bool__(self):
+	def __bool__(self) -> bool:
 		return bool(self.amount)
 
 	def __neg__(self):
@@ -239,32 +254,32 @@ class CollectableItem(object):
 class Gold(CollectableItem):
 	"""Collectable currency"""
 
-	def __init__(self, amount=0, *args, **kwargs):
-		super().__init__(amount, filename="gold.png", *args, **kwargs)
-		self.name = "gold"
+	def __init__(self, amount: int = 0) -> None:
+		super().__init__(amount, filename="gold.png")
+		self.name: str = "gold"
 
 
 class Player(object):
 	"""Class for the player. Includes stats and actions."""
 
-	def __init__(self, inventory, race="human"):
+	def __init__(self, inventory: Inventory, race: str = "human") -> None:
 		"""Setting stats and variables"""
 
-		self.race = race
-		self.loc = [(DUN_W - 1) // 2, (DUN_H - 1) // 2]
+		self.race: str = race
+		self.loc: list[int] = [(DUN_W - 1) // 2, (DUN_H - 1) // 2]
 		self.floor = None
-		self.max_health = DEFAULT_MAX_HEALTH
-		self.health = self.max_health
-		self.damage = DEFAULT_DAMAGE
-		self.defence = DEFAULT_DEFENCE
-		self.experiance = 0
-		self.lvl = 1
-		self.inven = inventory
-		self.equipment = {}
+		self.max_health: int = DEFAULT_MAX_HEALTH
+		self.health: int = self.max_health
+		self.damage: int = DEFAULT_DAMAGE
+		self.defence: int = DEFAULT_DEFENCE
+		self.experiance: int = 0
+		self.lvl: int = 1
+		self.inven: Inventory = inventory
+		self.equipment: dict = {}
 		self.status = None
 
-
-	def search_inventory(self, item, searching="inventory"):
+	'''
+	def search_inventory(self, item, searching: str = "inventory"):
 		"""Find the name of the item in the player's inventory or equipment"""
 
 		if searching == "inventory":
@@ -284,6 +299,7 @@ class Player(object):
 			if m := match(f"tier ([0-9]+) {item}", i):
 				items.append(f"tier {m.group(1)} {item}")
 		return items
+	'''
 
 	def occupied_equipment(self):
 		"""Figure out what equipment spaces are used"""
@@ -297,8 +313,10 @@ class Player(object):
 
 class Encounter(object):
 	"""A base class for enemies and non combat things"""
+	
+	image: ImageTk.PhotoImage
 
-	def __init__(self, filename="ImageNotFound.png"):
+	def __init__(self, filename: str = "ImageNotFound.png") -> None:
 		"""Create the image variable
 		
 		image is a class variable to reduce variable initialization
@@ -307,7 +325,9 @@ class Encounter(object):
 		related data together. It is being defined here so that
 		PhotoImage does not get called before tk has been initialised.
 		"""
-
+		
+		self.name: str = "Empty"
+		
 		if not hasattr(type(self), "image"):
 			image = Image.open(file_path(filename))
 			image = image.resize((180, 180))
@@ -316,7 +336,7 @@ class Encounter(object):
 	@classmethod
 	# Class method to give access to class variables for the class.
 	# This method belongs to not just this base class
-	def show_ico(cls, place="NW"):
+	def show_ico(cls, place: str = "NW") -> None:
 		"""Display the image of the enemy"""
 
 		if cls.image:
@@ -338,7 +358,7 @@ class Encounter(object):
 					anchor="center"
 				)
 
-	def meet(self, disp="NW"):
+	def meet(self, disp: str = "NW") -> None:
 		"""Start the encounter"""
 
 		if isinstance(self, Stairs):
@@ -349,11 +369,11 @@ class Encounter(object):
 		self.show_ico(place=disp)
 
 	@staticmethod
-	def leave():
+	def leave() -> None:
 		gui.navigation_mode()
 
 	@classmethod
-	def reset(cls):
+	def reset(cls) -> None:
 		if hasattr(cls, "image"):
 			del cls.image
 
@@ -375,8 +395,10 @@ class Empty(Encounter):
 
 class Stairs(Encounter):
 	"""Stairs to another Floor"""
+	
+	icon: ImageTk.PhotoImage
 
-	def __init__(self, location, dist=+1, to=None):
+	def __init__(self, location: dict[str, int], dist: int = +1, to=None) -> None:
 
 		if not hasattr(type(self), "image"):
 			image = Image.open(file_path("dungeon_stairs.png"))
@@ -390,8 +412,8 @@ class Stairs(Encounter):
 			)
 			type(self).icon = ImageTk.PhotoImage(icon)
 
-		self.location = location
-		self.dist = dist
+		self.location: dict[str, int] = location
+		self.dist: int = dist
 		if to:
 			self.to = to
 			self.dist = self.to["floor"] - self.location["floor"]
@@ -402,7 +424,7 @@ class Stairs(Encounter):
 				"y": (DUN_H - 1) // 2
 			}
 
-	def interact(self):
+	def interact(self) -> None:
 		"""Go up or down the stairs"""
 
 		dungeon.gen_floor(self.location)
@@ -421,7 +443,7 @@ class Stairs(Encounter):
 			 SMH * p.loc[1] + SMH)
 		)
 
-	def meet(self, disp="center"):
+	def meet(self, disp: str = "center"):
 		"""Dislpay the stairs image"""
 
 		super().meet(disp)
@@ -444,30 +466,31 @@ class Stairs(Encounter):
 class Enemy(Encounter):
 	"""General enemy class. Includes set up for fights, attacking, being
 	attacked, and returning loot"""
+	
+	name: str = "enemy"
 
-	def __init__(self, filename="ImageNotFound.png"):
+	def __init__(self, filename="ImageNotFound.png") -> None:
 
 		super().__init__(filename)
 
-		self.alive = True
-		self.max_health = 1
-		self.health = 1
-		self.damage = 1
-		self.name = "enemy"
+		self.alive: bool = True
+		self.max_health: int = 1
+		self.health: int = 1
+		self.damage: int = 1
 		# must be done again after stats are finalized
-		self.loot = {
+		self.loot: dict[str, CollectableItem] = {
 			"undefined_collectable_item": CollectableItem()
 		}
 
-	def gold_gen(self):
+	def gold_gen(self) -> Gold:
 		"""Determine how much gold the enemy will drop"""
 
 		return Gold(amount=self.max_health // 3 + self.damage // 2 + 2)
 
-	def meet(self):
+	def meet(self, disp: str = "NW") -> None:
 		"""Format screen for a fight"""
 
-		super().meet()
+		super().meet(disp)
 
 		gui.screen = "fight"
 		gui.nav.remove()
@@ -475,7 +498,7 @@ class Enemy(Encounter):
 
 		self.fight()
 
-	def fight(self):
+	def fight(self) -> None:
 		"""Set up fight screen"""
 
 		# enemy health bar
@@ -512,7 +535,7 @@ class Enemy(Encounter):
 			tags="fight_healthbar_text"
 		)
 
-	def attack(self):
+	def attack(self) -> None:
 		"""Attack the player"""
 
 		damage_delt = 0  # defence function ↓↓↓
@@ -525,7 +548,7 @@ class Enemy(Encounter):
 		gui.update_healthbar(p.health, p.max_health)
 		gui.out.config(text=f"The enemy did {str(damage_delt)} damage!")
 
-	def be_attacked(self):
+	def be_attacked(self) -> None:
 		"""The player attacks. The enemy is damaged"""
 
 		self.health -= p.damage
@@ -537,7 +560,7 @@ class Enemy(Encounter):
 		if self.alive:
 			self.attack()
 
-	def die(self):
+	def die(self) -> None:
 		"""The enemy dies"""
 
 		global monsters_killed
@@ -561,21 +584,16 @@ class Enemy(Encounter):
 
 class Goblin(Enemy):
 	"""Common weak enemy"""
+	
+	name: str = "goblin"
 
-	def __init__(self, *args, **kwargs):
+	def __init__(self) -> None:
 		"""Set stats and loot"""
 
-		#if not hasattr(type(self), "image"):
-			# enemy icon stuff
-		#	image = Image.open(file_path("TypicalGoblin.png"))
-		#	image = ImageOps.mirror(image.resize((180, 180)))
-		#	type(self).image = ImageTk.PhotoImage(image)
-
-		super().__init__(filename="TypicalGoblin.png", *args, **kwargs)
+		super().__init__(filename="TypicalGoblin.png")
 		self.max_health = rand.randint(30, 40) + monsters_killed // 2
 		self.health = self.max_health
 		self.damage = rand.randint(3, 6) + monsters_killed // 5
-		self.name = "goblin"
 		self.loot = {
 			"gold": self.gold_gen()
 		}
@@ -587,15 +605,15 @@ class Goblin(Enemy):
 class Slime(Enemy):
 	"""Higher level enemy"""
 
-	def __init__(self, *args, **kwargs):
+	name: str = "slime"
+
+	def __init__(self) -> None:
 		"""Set stats and loot"""
 
-		# noinspection PyArgumentList,PyArgumentList
-		super().__init__(*args, filename="SlimeMonster.png", **kwargs)
+		super().__init__(filename="SlimeMonster.png")
 		self.max_health = rand.randint(50, 70) + (3 * monsters_killed) // 2
 		self.health = self.max_health
 		self.damage = rand.randint(10, 15) + monsters_killed // 4
-		self.name = "slime monster"
 		self.loot = {
 			"gold": self.gold_gen()
 		}
@@ -606,13 +624,14 @@ class Slime(Enemy):
 class Drider(Enemy):
 	"""A enemy with medium health, but high attack and it can poison you"""
 
-	def __init__(self, *args, **kwargs):
-		super().__init__(*args, filename="Drider.png", **kwargs)
+	name = "drider"
+
+	def __init__(self) -> None:
+		super().__init__(filename="Drider.png")
 
 		self.max_health = rand.randint(40, 60) + monsters_killed
 		self.health = self.max_health
 		self.damage = rand.randint(20, 30) + monsters_killed // 2
-		self.name = "drider"
 		self.loot = {
 			"gold": self.gold_gen() + 10
 		}
@@ -621,15 +640,16 @@ class Drider(Enemy):
 class UsableItem(CollectableItem):
 	"""An item that can be used and consumed on use"""
 
-	def __init__(self, *args, **kwargs):
-		super().__init__(*args, **kwargs)
-		self.name = "undefined_usable_item"
+	name = "undefined_usable_item"
 
-	def use(self):
+	def __init__(self, *args, **kwargs) -> None:
+		super().__init__(*args, **kwargs)
+
+	def use(self) -> None:
 		"""Use the item for what ever purpose it has"""
 
 		if p.inven[self.name].amount <= 0:
-			raise UseItemWithZeroError(f"You have 0 {inv_name}s")
+			raise UseItemWithZeroError(f"You have 0 {self.name}s")
 
 		# should later change how consumable things work
 		# make not everything consumable? or add durability
@@ -638,18 +658,23 @@ class UsableItem(CollectableItem):
 		gui.out.config(text="Used " + self.name.title())
 
 
-class EquipableItem(CollectableItem):
+class EquipableItem(UsableItem):
 	"""An item that can be equiped and unequiped"""
+	
+	name: str = "undefined_equipable_item"
 
-	def __init__(self, *args, **kwargs):
+	def __init__(self, *args, **kwargs) -> None:
 		# *args and **kwargs allow other agruments to be passed
 		super().__init__(*args, **kwargs)
-		self.name = "undefined_equipable_item"
-		self.space = (None, float("inf"))
+		self.space: tuple = (None, float("inf"))
 		# would prefer for this to be a temp variable
-		self.equiped = False
+		self.equiped: bool = False
+	
+	def use(self) -> None:
+		super().use()
+		self.equip()
 
-	def equip(self):
+	def equip(self) -> None:
 		"""Equip the item"""
 
 		if (
@@ -672,7 +697,7 @@ class EquipableItem(CollectableItem):
 			else:
 				p.equipment[self.name][1] += 1
 
-	def unequip(self):
+	def unequip(self) -> None:
 		"""Unequip the item"""
 
 		if self.name in p.equipment:
@@ -690,14 +715,14 @@ class EquipableItem(CollectableItem):
 class BuyableItem(CollectableItem):
 	"""An item that is sold in the shop"""
 
-	tiered = False
+	tiered: bool = False
+	name: str = "undefined_buyable_item"
 
-	def __init__(self, *args, **kwargs):
+	def __init__(self, *args, **kwargs) -> None:
 		super().__init__(*args, **kwargs)
-		self.cost = 0
-		self.name = "undefined_buyable_item"
+		self.cost: int = 0
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return self.name
 
 	def effect(self):
@@ -709,12 +734,11 @@ class BuyableItem(CollectableItem):
 class HealthPot(UsableItem, BuyableItem):
 	"""An item that heals the player"""
 
-	name = "health potion"
+	name: str = "health potion"
 
-	def __init__(self, *args, **kwargs):
+	def __init__(self, *args, **kwargs) -> None:
 		super().__init__(filename="healthpotion.png", *args, **kwargs)
 		self.cost = int(100 * COST_MUL)
-		self.name = "health potion"
 
 	def use(self):
 		"""Restore health"""
@@ -849,7 +873,7 @@ def cur_room(xy=None):
 def restart():
 	"""Reset all the values of the game and prepare to start over"""
 
-	global dungeon, p, monsters_killed, gui
+	global dungeon, p, monsters_killed, gui, inventory
 	
 	del inventory
 	del gui
@@ -888,6 +912,12 @@ def get_loot(loot: dict):
 def file_path(file):
 	dirname = os.path.dirname(__file__)
 	return os.path.join(dirname, file)
+
+def normpdf(x, mean, sd):
+    var = float(sd)**2
+    denom = (2*pi*var)**.5
+    num = exp(-(float(x)-float(mean))**2/(2*var))
+    return num/denom
 
 
 if __name__ == "__main__":

@@ -19,11 +19,11 @@ class Inventory(object):
 		
 		# every item is stored under its name as: [item, index] in data
 		# and under index as: item in flat
-		self.data = {}
-		self.flat = {}
-		self.pages  = 1
+		self.data: dict = {}
+		self.flat: dict = {}
+		self.pages: int = 1
 	
-	def __getattr__(self, attr):
+	def __getattr__(self, attr: str):
 		return getattr(self.data, attr)
 
 	def __getitem__(self, key):
@@ -76,10 +76,10 @@ class Inventory(object):
 		else:
 			return self.insert(key, item)
 	
-	def insert(self, key, item):
+	def insert(self, key, item) -> int:
 		assert isinstance(key, str)
 		
-		index = 0
+		index: int = 0
 		for index in range(len(self.flat) + 1):
 			if index not in self.flat:
 				self.flat[index] = item
@@ -89,8 +89,9 @@ class Inventory(object):
 			self.pages += 1
 		return index
 	
-	def sub(self, key, amount):
+	def sub(self, key, amount: int) -> int:
 		
+		count: int
 		if isinstance(key, str):
 			self.data[key][0] -= amount
 			
@@ -99,7 +100,6 @@ class Inventory(object):
 				index = self.data[key][1]
 				del self.data[key]
 				del self.flat[index]
-			return count
 		elif isinstance(key, int):
 			self.flat[key] -= amount
 			
@@ -108,9 +108,8 @@ class Inventory(object):
 				name = self.flat[key].name
 				del self.flat[key]
 				del self.data[name]
-			return count
-	
-			
+		return count
+
 
 
 
