@@ -1,9 +1,14 @@
+"""Module for the inventory class """
+
+
 from config import *
 
 __all__ = ["Inventory"]
 
 
-class Inventory_Iterator(object):
+class InventoryIterator(object):
+	"""Iterator for the inventory class"""
+
 	def __init__(self, d_iter):
 		self.d = d_iter
 	
@@ -15,7 +20,9 @@ class Inventory_Iterator(object):
 
 
 class Inventory(object):
-	def __init__(self):
+	"""Class to store all the items the player has"""
+
+	def __init__(self) -> None:
 		
 		# every item is stored under its name as: [item, index] in data
 		# and under index as: item in flat
@@ -32,7 +39,7 @@ class Inventory(object):
 		elif isinstance(key, int):
 			return self.flat[key]
 
-	def __setitem__(self, key, item):
+	def __setitem__(self, key, item) -> None:
 		if isinstance(key, str):
 			if key in self.data:
 				num = self.data[key][1]
@@ -43,9 +50,8 @@ class Inventory(object):
 		elif isinstance(key, int):
 			self.flat[key] = item
 			self.data[item.name] = [item, key]
-			
 
-	def __delitem__(self, key):
+	def __delitem__(self, key) -> None:
 		if isinstance(key, str):
 			num = self.data[key][1]
 			del self.data[key]
@@ -55,29 +61,30 @@ class Inventory(object):
 			del self.flat[key]
 			del self.data[name]
 
-	def __len__(self):
+	def __len__(self) -> int:
 		return len(self.data)
 
-	def __contains__(self, key):
+	def __contains__(self, key) -> bool:
 		if isinstance(key, str):
 			return key in self.data
 		elif isinstance(key, int):
 			return key in self.flat
 
-	def __iter__(self):
-		return Inventory_Iterator(iter(self.data))
+	def __iter__(self) -> InventoryIterator:
+		return InventoryIterator(iter(self.data))
 	
-	def add(self, key, item) -> int:
+	def add(self, key: str, item) -> int:
+		"""Add an item to both dictionaries"""
 		
-		# it is the same object in both dictoraries
+		# it is the same object in both dictionaries
 		if key in self.data:
 			self.data[key][0] += item
 			return self.data[key][1]
 		else:
 			return self.insert(key, item)
 	
-	def insert(self, key, item) -> int:
-		assert isinstance(key, str)
+	def insert(self, key: str, item) -> int:
+		"""Insert an new item to both dictionaries"""
 		
 		index: int = 0
 		for index in range(len(self.flat) + 1):
@@ -90,8 +97,10 @@ class Inventory(object):
 		return index
 	
 	def sub(self, key, amount: int) -> int:
+		"""Remove a certain amount of an item from the inventory and remove
+		it from both dictionaries if appropriate"""
 		
-		count: int
+		count: int = 0
 		if isinstance(key, str):
 			self.data[key][0] -= amount
 			
@@ -111,11 +120,4 @@ class Inventory(object):
 		return count
 
 
-
-
-
-
-
-	
-
-
+# END

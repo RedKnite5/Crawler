@@ -2,34 +2,34 @@
 
 """The main Crawler game"""
 
-import random as rand
-import tkinter as tk
-from re import match
+import random
 from functools import total_ordering
 from math import atan, pi, exp
 import os
 
-from PIL import Image     # type: ignore
+from PIL import Image  # type: ignore
 from PIL import ImageOps  # type: ignore
-from PIL import ImageTk   # type: ignore
+from PIL import ImageTk  # type: ignore
 
 from GUI import GUI
 from inven import Inventory
 from errors import *
 from config import *
 
+
 #   python Crawler.py
 
 # ToDo: If you equip and unequip a sword, further attempts to unequip will
 #       not produce any message.
-# ToDo: Change how equiping stuff works so that it doesn't remove it from
+# ToDo: Change how equipping stuff works so that it doesn't remove it from
 #       the inventory, just puts a marker by it.
-# ToDo: Get Gold icon to work
-
-# fix all issues labeled: 'BUG:'
+# ToDo: Equipping a sword wont remove all swords from your inventory
+# ToDo: fix all issues labeled: 'BUG:'
 
 
 class Dungeon(object):
+	"""Contains the Rooms in a structured way"""
+
 	def __init__(self) -> None:
 		self.floors: list['Floor'] = [Floor(0)]
 		self.floor_num: int = 0
@@ -42,6 +42,8 @@ class Dungeon(object):
 		return self.floors[index]
 
 	def gen_floor(self, up_stair_location: dict[str, int], level="+1") -> None:
+		"""Create the next single floor of the dungeon"""
+
 		if level[0] == "+" and level[1:].isdigit():
 			new_floor_num = self.floor_num + int(level[1:])
 		else:
@@ -72,10 +74,11 @@ class Floor(object):
 		for i in range(DUN_W):  # map generation
 			column: list['Room'] = []
 			for k in range(DUN_H):
-				column.append(Room(int(
-					(abs(i - (DUN_W - 1) // 2)
-					 + abs(k - (DUN_H - 1) // 2)) * 1.5
-					* DISTANCE_DIFF + 150 * self.floor_num),
+				column.append(Room(
+					int((abs(i - (DUN_W - 1) // 2)
+						+ abs(k - (DUN_H - 1) // 2)
+						) * 1.5 * DISTANCE_DIFF + 150 * self.floor_num
+					),
 					{"x": i, "y": k, "floor": self.floor_num}))
 			self.dun.append(column)
 
@@ -98,30 +101,23 @@ class Room(object):
 	"""Class for individual cells with encounters in them."""
 
 	def __init__(self, difficulty: int, location: dict[str, int]) -> None:
-		"""Room creation"""
-
 		self.type: int
 		self.info: str
 		self.en: Encounter
 		self.location: dict[str, int] = location
 		self.visited: bool = False
-		
-		weights: list[float] = []
-		
-		#goblin
-		weights.append(normpdf(difficulty, 600, 200))
-		
-		#slime
-		weights.append(normpdf(difficulty, 1050, 200))
-		
-		#drider
-		weights.append(normpdf(difficulty, 1500, 200))
-		
+
+		weights: tuple[float, float, float] = (
+			normpdf(difficulty, 600, 200),  # goblin
+			normpdf(difficulty, 1050, 200),  # slime
+			normpdf(difficulty, 1500, 200)  # drider
+		)
+
 		# Goblin, Slime, Drider
 		enemy_types = [101, 102, 103]
-		
+
 		if ENEMIES:
-			self.type = rand.choices(enemy_types, weights=weights)[0]
+			self.type = random.choices(enemy_types, weights=weights)[0]
 		else:
 			self.type = 100
 		self.init2()
@@ -130,7 +126,7 @@ class Room(object):
 	# manually, used for stairs and some other stuff
 	def init2(self, **kwargs) -> None:
 		"""Set various variables that may need to be updated all together"""
-		
+
 		# enemy generation
 		if self.type == 103:
 			self.en = Drider()
@@ -141,7 +137,7 @@ class Room(object):
 		elif self.type == 100:
 			self.info = "This is an empty room"
 			self.en = Empty()
-		
+
 		if self.type > 100:
 			self.info = f"This is a room with a {self.en.name}"
 
@@ -193,14 +189,17 @@ class Room(object):
 @total_ordering
 class CollectableItem(object):
 	"""Class for any item that can be gained by the player."""
-	
+
 	image: ImageTk.PhotoImage
 
-	def __init__(self, amount: int = 1, filename: str = "ImageNotFound.png") -> None:
+	def __init__(
+			self,
+			amount: int = 1,
+			filename: str = "ImageNotFound.png") -> None:
 		self.amount: int = amount
-		self.plurale: bool = False
+		self.plural: bool = False
 		self.name: str = "undefined_collectable_item"
-		
+
 		# if a refereance is not kept to ImageTk.PhotoImage(image) it
 		# is garbage collected and will not display
 		if not hasattr(type(self), "image"):
@@ -210,7 +209,7 @@ class CollectableItem(object):
 			type(self).image = ImageTk.PhotoImage(image)
 
 	def __str__(self) -> str:
-		#return self.name
+		# return self.name
 		return f"{self.amount} {self.name}"
 
 	# math ops are here to allow manipulation of the
@@ -262,7 +261,7 @@ class Gold(CollectableItem):
 class Player(object):
 	"""Class for the player. Includes stats and actions."""
 
-	def __init__(self, inventory: Inventory, race: str = "human") -> None:
+	def __init__(self, inven: Inventory, race: str = "human") -> None:
 		"""Setting stats and variables"""
 
 		self.race: str = race
@@ -274,32 +273,9 @@ class Player(object):
 		self.defence: int = DEFAULT_DEFENCE
 		self.experiance: int = 0
 		self.lvl: int = 1
-		self.inven: Inventory = inventory
+		self.inven: Inventory = inven
 		self.equipment: dict = {}
 		self.status = None
-
-	'''
-	def search_inventory(self, item, searching: str = "inventory"):
-		"""Find the name of the item in the player's inventory or equipment"""
-
-		if searching == "inventory":
-			search = self.inven
-		elif searching == "equipment":
-			search = self.equipment
-		else:
-			raise ItemNotFoundError
-
-		# if the item is just in the inventory
-		if item in search.keys():
-			return [item]
-
-		items = []
-		for i in search.keys():
-			# check if the item is tiered
-			if m := match(f"tier ([0-9]+) {item}", i):
-				items.append(f"tier {m.group(1)} {item}")
-		return items
-	'''
 
 	def occupied_equipment(self):
 		"""Figure out what equipment spaces are used"""
@@ -313,7 +289,7 @@ class Player(object):
 
 class Encounter(object):
 	"""A base class for enemies and non combat things"""
-	
+
 	image: ImageTk.PhotoImage
 
 	def __init__(self, filename: str = "ImageNotFound.png") -> None:
@@ -325,9 +301,9 @@ class Encounter(object):
 		related data together. It is being defined here so that
 		PhotoImage does not get called before tk has been initialised.
 		"""
-		
+
 		self.name: str = "Encounter"
-		
+
 		if not hasattr(type(self), "image"):
 			image = Image.open(file_path(filename))
 			image = image.resize((180, 180))
@@ -365,38 +341,32 @@ class Encounter(object):
 		gui.cbt_scr.delete("all")
 		self.show_ico(place=disp)
 
-	@staticmethod
-	def leave() -> None:
-		gui.navigation_mode()
-
-	@classmethod
-	def reset(cls) -> None:
-		if hasattr(cls, "image"):
-			del cls.image
-
 
 class Empty(Encounter):
 	"""An empty room"""
 
 	image = None
 
-	# noinspection PyMissingConstructor
 	def __init__(self) -> None:
 		pass
 
-	# noinspection PyMethodOverriding
 	def meet(self, disp: str = "") -> None:
-		super().meet()
-		self.leave()
+		"""Dont do anything because the room is empty"""
+
+		pass
 
 
 class Stairs(Encounter):
 	"""Stairs to another Floor"""
-	
+
 	image: ImageTk.PhotoImage
 	icon: ImageTk.PhotoImage
 
-	def __init__(self, location: dict[str, int], dist: int = +1, to=None) -> None:
+	def __init__(
+			self,
+			location: dict[str, int],
+			dist: int = +1,
+			to=None) -> None:
 
 		if not hasattr(type(self), "image"):
 			image = Image.open(file_path("dungeon_stairs.png"))
@@ -431,25 +401,29 @@ class Stairs(Encounter):
 		p.floor = dungeon.current_floor
 		p.loc[:] = (self.to["x"], self.to["y"])
 
-		#gui.navigation_widgets[0] = dungeon.current_floor.disp
+		# gui.navigation_widgets[0] = dungeon.current_floor.disp
 		gui.navigation_mode()
 
-		dungeon.current_floor.disp.coords("player",
-			(SMW * p.loc[0],
-			 SMH * p.loc[1],
-			 SMW * p.loc[0] + SMW,
-			 SMH * p.loc[1] + SMH)
+		dungeon.current_floor.disp.coords(
+			"player",
+			(
+				SMW * p.loc[0],
+				SMH * p.loc[1],
+				SMW * p.loc[0] + SMW,
+				SMH * p.loc[1] + SMH
+			)
 		)
 
 	def meet(self, disp: str = "center") -> None:
 		"""Dislpay the stairs image"""
 
 		super().meet(disp)
-		
+
 		gui.nav.draw_encounter(self.icon, p.loc[0], p.loc[1])
 
 		gui.screen = "stairs"
 		gui.clear_screen()
+		gui.bat_frame.grid(row=0, column=0)
 		gui.cbt_scr.grid(row=0, column=0, columnspan=4)
 
 		gui.inter_btn.grid(row=1, column=1)
@@ -460,7 +434,7 @@ class Stairs(Encounter):
 		# Having a button labeled "Leave" also sounds like going down
 		# the stairs
 		gui.leave_btn.config(text="Leave")
-		gui.leave_btn.config(command=self.leave)
+		#gui.leave_btn.config(command=self.leave)
 
 
 class Enemy(Encounter):
@@ -536,7 +510,7 @@ class Enemy(Encounter):
 	def attack(self) -> None:
 		"""Attack the player"""
 
-		damage_delt = 0  # defence function ↓↓↓
+		# defence function ↓↓↓
 		damage_delt = round(
 			self.damage * (1 - 2 * atan(p.defence / 20) / pi)
 		)
@@ -577,7 +551,7 @@ class Enemy(Encounter):
 		# take loot
 		get_loot(self.loot)
 
-		self.leave()
+		gui.navigation_mode()
 
 
 class Goblin(Enemy):
@@ -588,14 +562,14 @@ class Goblin(Enemy):
 
 		super().__init__(filename="TypicalGoblin.png")
 		self.name: str = "goblin"
-		self.max_health = rand.randint(30, 40) + monsters_killed // 2
+		self.max_health = random.randint(30, 40) + monsters_killed // 2
 		self.health = self.max_health
-		self.damage = rand.randint(3, 6) + monsters_killed // 5
+		self.damage = random.randint(3, 6) + monsters_killed // 5
 		self.loot = {
 			"gold": self.gold_gen()
 		}
 
-		if not rand.randint(0, 2):
+		if not random.randint(0, 2):
 			self.loot["health potion"] = HealthPot()
 
 
@@ -607,13 +581,13 @@ class Slime(Enemy):
 
 		super().__init__(filename="SlimeMonster.png")
 		self.name: str = "slime"
-		self.max_health = rand.randint(50, 70) + (3 * monsters_killed) // 2
+		self.max_health = random.randint(50, 70) + (3 * monsters_killed) // 2
 		self.health = self.max_health
-		self.damage = rand.randint(10, 15) + monsters_killed // 4
+		self.damage = random.randint(10, 15) + monsters_killed // 4
 		self.loot = {
 			"gold": self.gold_gen()
 		}
-		if not rand.randint(0, 15):
+		if not random.randint(0, 15):
 			self.loot["slime heart"] = SlimeHeart()
 
 
@@ -622,11 +596,11 @@ class Drider(Enemy):
 
 	def __init__(self) -> None:
 		super().__init__(filename="Drider.png")
-		
+
 		self.name: str = "drider"
-		self.max_health = rand.randint(40, 60) + monsters_killed
+		self.max_health = random.randint(40, 60) + monsters_killed
 		self.health = self.max_health
-		self.damage = rand.randint(20, 30) + monsters_killed // 2
+		self.damage = random.randint(20, 30) + monsters_killed // 2
 		self.loot = {
 			"gold": self.gold_gen() + 10
 		}
@@ -637,7 +611,7 @@ class UsableItem(CollectableItem):
 
 	def __init__(self, *args, **kwargs) -> None:
 		super().__init__(*args, **kwargs)
-		
+
 		self.name: str = "undefined_usable_item"
 
 	def use(self) -> None:
@@ -648,7 +622,7 @@ class UsableItem(CollectableItem):
 
 		# should later change how consumable things work
 		# make not everything consumable? or add durability
-		#p.inven[self.name] -= 1
+		# p.inven[self.name] -= 1
 
 		gui.out.config(text="Used " + self.name.title())
 
@@ -663,8 +637,9 @@ class EquipableItem(UsableItem):
 		self.space: tuple = (None, float("inf"))
 		# would prefer for this to be a temp variable
 		self.equiped: bool = False
-	
+
 	def use(self) -> None:
+		"""Using an equipable item equips it"""
 		super().use()
 		self.equip()
 
@@ -679,7 +654,8 @@ class EquipableItem(UsableItem):
 			gui.out.config(
 				text=f"You can not equip more than {self.space[1]} of this"
 			)
-			raise EquipmentFullError(f"You can not equip more than {self.space[1]} of this")
+			raise EquipmentFullError(
+				f"You can not equip more than {self.space[1]} of this")
 		else:
 			self.equiped = True
 			gui.out.config(text=f"You equip the {self.name}")
@@ -748,7 +724,7 @@ class SlimeHeart(UsableItem):
 
 	def __init__(self, *args, **kwargs) -> None:
 		super().__init__(*args, **kwargs)
-		
+
 		self.name: str = "slime heart"
 
 	def use(self) -> None:
@@ -796,9 +772,10 @@ class Sword(BuyableItem, EquipableItem):
 def armor_factory(tier: int) -> type[CollectableItem]:
 	"""Create armor class with the desired tier"""
 
+
 	class Armor(BuyableItem, EquipableItem):
 		"""Armor class that gives defence"""
-		
+
 		# here so that a higher tier class can be generated from this one
 		factory = staticmethod(armor_factory)
 
@@ -810,7 +787,7 @@ def armor_factory(tier: int) -> type[CollectableItem]:
 			self.tier: int = tier
 			self.cost = int(COST_MUL * 100 * self.tier)
 			self.space = ("body", 1)
-			self.plurale = True
+			self.plural = True
 
 		def equip(self) -> None:
 			"""Wear the armor"""
@@ -848,7 +825,7 @@ max_use_body_part = {
 
 def cur_room(xy=None) -> Room:
 	"""Return the Room object that they player is currently in"""
-	
+
 	if xy is None:
 		x = p.loc[0]
 		y = p.loc[1]
@@ -863,14 +840,14 @@ def restart() -> None:
 	"""Reset all the values of the game and prepare to start over"""
 
 	global dungeon, p, monsters_killed, gui, inventory
-	
+
 	del inventory
 	del gui
 	del p
 	del dungeon
-	
+
 	monsters_killed = 0
-	
+
 	inventory = Inventory()
 
 	p = Player(inventory)
@@ -890,30 +867,33 @@ def restart() -> None:
 
 
 def get_loot(loot: dict) -> None:
+	"""Add all loot items to inventroy"""
+
 	for key, item in loot.items():
-		#if key in p.inven:
-		#	p.inven[key] += item
-		#else:
-		#	p.inven[key] = item
 		gui.add_to_inv(item)
 
 
 def file_path(file: str) -> str:
+	"""Find files in the Crawler home directory"""
+
 	dirname = os.path.dirname(__file__)
 	return os.path.join(dirname, file)
 
+
 def normpdf(x: float, mean: float, sd: float) -> float:
-    var = float(sd)**2
-    denom = (2*pi*var)**.5
-    num = exp(-(float(x)-float(mean))**2/(2*var))
-    return num/denom
+	"""Calculate points on a normal curve"""
+
+	var = float(sd) ** 2
+	denom = (2 * pi * var) ** .5
+	num = exp(-(float(x) - float(mean)) ** 2 / (2 * var))
+	return num / denom
 
 
 if __name__ == "__main__":
 	print("\n" * 3)
-	
+
 	monsters_killed = 0
-	
+
 	inventory = Inventory()
 
 	p = Player(inventory)
@@ -924,7 +904,7 @@ if __name__ == "__main__":
 
 	get_loot({"gold": Gold(amount=STARTING_GOLD)})
 
-	#gui.player_config(p)
+	# gui.player_config(p)
 
 	dungeon = Dungeon()
 	gui.dungeon_config(dungeon)
@@ -932,12 +912,3 @@ if __name__ == "__main__":
 	p.floor = dungeon.current_floor
 
 	gui.master.mainloop()
-
-
-
-
-
-
-
-
-
