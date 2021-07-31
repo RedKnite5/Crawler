@@ -31,7 +31,7 @@ __all__ = [
 ]
 
 # whether enemies spawn or not
-ENEMIES = False
+ENEMIES = True
 # number of rooms wide
 DUN_W = 3
 DUN_H = 3

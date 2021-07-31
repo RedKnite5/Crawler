@@ -1,6 +1,6 @@
 """Module for the inventory class """
 
-
+from errors import *
 from config import *
 
 __all__ = ["Inventory"]
@@ -9,7 +9,7 @@ __all__ = ["Inventory"]
 class InventoryIterator(object):
 	"""Iterator for the inventory class"""
 
-	def __init__(self, d_iter):
+	def __init__(self, d_iter) -> None:
 		self.d = d_iter
 	
 	def __iter__(self):
@@ -38,6 +38,8 @@ class Inventory(object):
 			return self.data[key][0]
 		elif isinstance(key, int):
 			return self.flat[key]
+		
+		raise InvalidInventoryKey(f"type: {type(key)}")
 
 	def __setitem__(self, key, item) -> None:
 		if isinstance(key, str):
@@ -50,6 +52,8 @@ class Inventory(object):
 		elif isinstance(key, int):
 			self.flat[key] = item
 			self.data[item.name] = [item, key]
+		else:
+			raise InvalidInventoryKey(f"type: {type(key)}")
 
 	def __delitem__(self, key) -> None:
 		if isinstance(key, str):
@@ -60,6 +64,8 @@ class Inventory(object):
 			name = self.flat[key].name
 			del self.flat[key]
 			del self.data[name]
+		else:
+			raise InvalidInventoryKey(f"type: {type(key)}")
 
 	def __len__(self) -> int:
 		return len(self.data)
@@ -69,6 +75,8 @@ class Inventory(object):
 			return key in self.data
 		elif isinstance(key, int):
 			return key in self.flat
+		
+		raise InvalidInventoryKey(f"type: {type(key)}")
 
 	def __iter__(self) -> InventoryIterator:
 		return InventoryIterator(iter(self.data))
@@ -117,6 +125,9 @@ class Inventory(object):
 				name = self.flat[key].name
 				del self.flat[key]
 				del self.data[name]
+		else:
+			raise InvalidInventoryKey(f"type: {type(key)}")
+		
 		return count
 
 

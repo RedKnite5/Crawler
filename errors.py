@@ -5,7 +5,8 @@ __all__ = [
 	"ItemNotFoundError",
 	"NotEquippedError",
 	"EquipmentFullError",
-	"UseItemWithZeroError"
+	"UseItemWithZeroError",
+	"InvalidInventoryKey"
 ]
 
 
@@ -27,3 +28,7 @@ class EquipmentFullError(ValueError, CrawlerError):
 
 class UseItemWithZeroError(ValueError, CrawlerError):
 	"""Attempted to use an item that the player had zero of"""
+
+
+class InvalidInventoryKey(TypeError, CrawlerError):
+	"""Use a invalid type for indexing the inventory object"""

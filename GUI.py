@@ -8,10 +8,9 @@ import tkinter as tk
 from tkinter import font
 from random import randint
 
-from PIL import Image     # type: ignore
-from PIL import ImageOps  # type: ignore
+#from PIL import Image     # type: ignore
+#from PIL import ImageOps  # type: ignore
 from PIL import ImageTk   # type: ignore
-
 
 from errors import *
 from config import *
@@ -44,7 +43,26 @@ class MultiframeWidget(object):
 		return f
 
 
-class Navigation(object):
+class Screen(object):
+	"""Base class for different screens"""
+
+	def __init__(self, master) -> None:
+		self.frame: tk.Frame = tk.Frame(master)
+
+	def remove(self) -> None:
+		"""Remove the frame from the master window"""
+
+		self.frame.grid_remove()
+
+	def show(self) -> None:
+		"""Display the screen"""
+
+		self.frame.grid(row=0, column=0)
+		self.frame.focus_set()
+
+
+
+class Navigation(Screen):
 	"""The navigation screen with the map of the current floor"""
 
 	def __init__(
@@ -56,7 +74,9 @@ class Navigation(object):
 			cur_room,
 			write_out) -> None:
 	
-		self.frame: tk.Frame = tk.Frame(master)
+		super().__init__(master)
+		#self.frame: tk.Frame = tk.Frame(master)
+		
 		
 		self.player_loc = p_loc
 		self.cur_room = cur_room
@@ -189,9 +209,11 @@ class Navigation(object):
 
 			"""
 			if self.screen == "stairs":
-			#	self.navigation_mode()
+				self.enc_frame.grid_remove()
+				self.nav.show()
+				self.screen = "navigation"
 
-			#if self.screen != "fight":
+			if self.screen != "fight":
 			"""
 			self.p_move(direction)
 
@@ -294,98 +316,66 @@ class Navigation(object):
 			anchor="center"
 		)
 
-	def remove(self) -> None:
-		"""Remove the navigation frame from the master window"""
 
-		self.frame.grid_remove()
+class GameOver(Screen):
+	"""Screen for after the player loses"""
+	
+	def __init__(self, master) -> None:
+		super().__init__(master)
+		
+		self.game_over: tk.Canvas = tk.Canvas(
+			self.frame,
+			width=W + 100,
+			height=H
+		)
+		self.game_over.create_rectangle(0, 0, W + 100, H + 50, fill="black")
+		self.game_over.create_text(
+			W/2 + 50,
+			H/2,
+			text="GAME OVER",
+			fill="green",
+			font=font.Font(size=40)
+		)
+		self.game_over.grid()
+		
+		
+		'''
+		self.restart_button: tk.Button = tk.Button(
+			self.game_over_frame,
+			text="Restart",
+			command=restart,
+			width=10
+		)
+		
+		self.game_over.create_window(W, H * 3/4, window=self.restart_button)
+		self.restart_button.lift()
+		'''
+	
 
-	def show(self) -> None:
-		"""Put the navigation frame on the master window and give it focus so
-		bindings work correctly"""
-
-		self.frame.grid(row=0, column=0)
-		self.frame.focus_set()
-
-
-class GUI(object):
-	"""The user interface for the game"""
-
-	def __init__(
-			self,
-			inven,
-			p_damage: int,
-			p_defence: int,
-			p_max_health: int,
-			player_loc,
-			cur_room) -> None:
-
-		self.screen: str = "navigation"
+class InventoryScreen(Screen):
+	def __init__(self, master, inven, buyable: dict, stock, leave_inv, write_out) -> None:
+		super().__init__(master)
+		
 		self.inven = inven
-
-		self.master = tk.Tk()
+		self.buyable_items = buyable
+		self.stock = stock
+		self.write_out = write_out
 		
-		self.player_loc = player_loc
-
-		# window name
-		self.master.title(string="The Dungeon")
-		self.empty_menu = tk.Menu(self.master)
-		
-		self.nav = Navigation(
-			self.master,
-			p_max_health,
-			self.player_loc,
-			self.inventory_mode,
-			cur_room,
-			self.write_out
-		)
-		
-		self.init_inv_scr()
-		self.init_bat_scr()
-		self.init_gmo_scr()
-		
-		self.stats = MultiframeWidget(
-			{"nav": self.nav.frame, "bat": self.bat_frame},
-			tk.Message,
-			text=""
-		)
-		self.stats.widgets["nav"].grid(row=1, column=1, columnspan=2)
-		self.stats.widgets["bat"].grid(row=1, column=3)
-		
-		self.update_stats(p_damage, p_defence)
-		
-		self.out = MultiframeWidget(
-			{"nav": self.nav.frame, "bat": self.bat_frame},
-			tk.Message,
-			text="Welcome to The Dungeon. Come once, stay forever!",
-			width=W + 100
-		)
-		self.out.widgets["nav"].grid(row=5, column=0, columnspan=4)
-		self.out.widgets["bat"].grid(row=2, column=0, columnspan=3)
-
-		# top level shop menu
-		self.shop = tk.Menu(self.master)
-		# drop down menu
-		self.stock = tk.Menu(self.shop, tearoff=0)
-
-		self.shop.add_cascade(menu=self.stock, label="Shop")
-		# add menu to screen
-		self.master.config(menu=self.shop)
-		
-		self.navigation_mode()
-
-	def init_inv_scr(self) -> None:
-		"""Create the inventory screen"""
-		
-		self.inv_frame: tk.Frame = tk.Frame(self.master)
+		for i in self.buyable_items:
+			# actual things you can buy
+			self.stock.add_command(
+				label=f"{i.title()}: {self.buyable_items[i]().cost}",
+				command=self.buy_item_fact(i)
+			)
 		
 		self.back_btn: tk.Button = tk.Button(
-			self.inv_frame,
+			self.frame,
 			text="leave",
-			command=self.leave_inv
+			command=leave_inv
 		)
 		self.back_btn.grid(row=0, column=1)
 		
-		self.inv_scr: tk.Canvas = tk.Canvas(self.inv_frame, width=W, height=H)
+		self.inv_scr: tk.Canvas = tk.Canvas(self.frame, width=W, height=H)
 		self.inv_scr.grid(row=0, column=0)
 		
 		self.inv_scr.bind("<Button 1>", self.inv_click)
@@ -402,101 +392,21 @@ class GUI(object):
 					fill="grey",
 					tags=f"{str(w)},{str(h)}"
 				)
-			
-	def init_bat_scr(self) -> None:
-		"""Create battle screen"""
-		
-		self.bat_frame: tk.Frame = tk.Frame(self.master)
-		
-		#  fight screen
-		self.cbt_scr: tk.Canvas = tk.Canvas(self.bat_frame, width=W + 100, height=H)
-		self.cbt_scr.grid(row=0, column=0, columnspan=3)
 
-		# for non-hostile encounters
-		self.leave_btn = tk.Button(
-			self.bat_frame, text="", command=self.leave
-		)
+	def inv_click(self, event) -> None:
+		"""Use an item when you click on it in the inventory"""
 		
-	def init_gmo_scr(self) -> None:
-		"""Create game over screen"""
+		x: int = event.x * INV_WIDTH // W
+		y: int = event.y * INV_HEIGHT // H
 		
-		self.game_over_frame: tk.Frame = tk.Frame(self.master)
+		index: int = y * INV_WIDTH + x
 		
-		self.game_over: tk.Canvas = tk.Canvas(
-			self.game_over_frame,
-			width=W + 100,
-			height=H
-		)
-		self.game_over.create_rectangle(0, 0, W + 100, H + 50, fill="black")
-		self.game_over.create_text(
-			W/2 + 50,
-			H/2,
-			text="GAME OVER",
-			fill="green",
-			font=font.Font(size=40)
-		)
-		self.game_over.grid()
-
-	def inventory_mode(self) -> None:
-		"""Display the player's inventory"""
-
-		self.nav.remove()
-		self.bat_frame.grid_remove()
-		
-		self.inv_frame.grid(row=0, column=0)
-		
-		self.inv_frame.focus_set()
-
-	def dungeon_config(self, dungeon) -> None:
-		"""Configure settings that require that the dungeon object exist
-		
-		Also and the player location"""
-
-		self.dungeon = dungeon
-
-		self.att_b = tk.Button(
-			self.bat_frame,
-			text="Attack",
-			command=lambda: self.cur_room().en.be_attacked())
-		self.att_b.grid(row=1, column=0)
-
-		self.run_b = tk.Button(self.bat_frame, text="Flee", command=self.flee)
-		self.run_b.grid(row=1, column=2)
-
-		# ISSUE: what frame should this be on?
-		self.inter_btn = tk.Button(
-			self.master,
-			text="",
-			command=lambda event: self.cur_room().en.interact()
-		)
-		
-		# collections of widgets
-		self.non_hostile_widgets: list[tk.Widget] = [self.inter_btn, self.leave_btn]
-	
-	def misc_config(self, items: tuple, restart) -> None:
-		"""Configure settings that require buyable_items or the restart
-		function
-		"""
-
-		self.buyable_items: dict = {item().name: item for item in items}
-		
-		for i in self.buyable_items:
-			# actual things you can buy
-			self.stock.add_command(
-				label=f"{i.title()}: {str(self.buyable_items[i]().cost)}",
-				command=self.buy_item_fact(i)
-			)
-
-		# collections of widgets
-		self.restart_button: tk.Button = tk.Button(
-			self.game_over_frame,
-			text="Restart",
-			command=restart,
-			width=10
-		)
-		
-		self.game_over.create_window(W, H * 3/4, window=self.restart_button)
-		self.restart_button.lift()
+		try:
+			if index in self.inven:
+				self.inven[index].use()
+				self.sub_from_inv(self.inven[index].name, 1)
+		except AttributeError:
+			pass
 
 	def add_to_inv(self, item) -> None:
 		"""Add an item to the inventory data structure and draw it on the
@@ -539,95 +449,6 @@ class GUI(object):
 		else:
 			new_text = str(total) if total > 1 else ""
 			self.inv_scr.itemconfig(self.inv_images[item_name][1], text=new_text)
-		
-	def leave_inv(self) -> None:
-		"""Switch from the inventory screen to the previous screen"""
-
-		self.inv_frame.grid_remove()
-		if self.screen == "navigation":
-			self.navigation_mode()
-		elif self.screen == "battle":
-			self.bat_frame.grid(row=0, column=0)
-
-	def update_stats(self, damage: int, defence: int) -> None:
-		"""Update the stats for the player"""
-
-		self.stats.config(
-			text=f"Damage: {damage}\nDefence: {defence}"
-		)
-
-	def write_out(self, new_text: str) -> None:
-		"""Set the content of the out widget to display messages to the
-		player"""
-
-		self.out.config(text=new_text)
-
-	def update_healthbar(self, health: int, max_health: int) -> None:
-		"""Update the appearance of the healthbar in both the fighting screen
-		and the navigation screen"""
-
-		self.cbt_scr.coords(
-			"fight_healthbar",
-			10,
-			H - 30,
-			10 + (100 * health / max_health),
-			H - 10
-		)
-		self.cbt_scr.itemconfig(
-			"fight_healthbar_text",
-			text=f"{health}/{max_health}"
-		)
-
-		self.nav.update_healthbar(health, max_health)
-
-	def navigation_mode(self) -> None:
-		"""Switch to navigation screen"""
-
-		self.bat_frame.grid_remove()
-		self.nav.show()
-		
-		self.screen = "navigation"
-
-	def leave(self) -> None:
-		"""Flee a fight or leave a room"""
-
-		if self.screen == "fight":
-			self.flee()
-		else:
-			self.navigation_mode()
-			self.dungeon.current_floor.disp.create_image(
-				int(SMW * (self.player_loc[0] + .5)),
-				int(SMH * (self.player_loc[1] + .5)),
-				image=self.cur_room().en.icon,
-				anchor="center"
-			)
-
-	def clear_screen(self) -> None:
-		"""Remove all widgets"""
-
-		self.nav.remove()
-		self.bat_frame.grid_remove()
-		self.inv_frame.grid_remove()
-		self.master.config(menu=self.empty_menu)
-
-	def lose(self) -> None:
-		"""Change screen to the game over screen"""
-
-		self.screen = "game over"
-		self.clear_screen()
-		self.game_over_frame.grid(row=0, column=0)
-	
-	def inv_click(self, event) -> None:
-		"""Use an item when you click on it in the inventory"""
-		
-		x: int = event.x * INV_WIDTH // W
-		y: int = event.y * INV_HEIGHT // H
-		
-		index: int = y * INV_WIDTH + x
-		
-		if index in self.inven:
-			self.inven[index].use()
-			self.sub_from_inv(self.inven[index].name, 1)
 
 	def buy_item_fact(self, item_name: str, amount: int = 1, *args):
 		"""Factory for buying things in the shop"""
@@ -644,9 +465,9 @@ class GUI(object):
 					# passive effect from having it
 					item.effect()
 					if item.plural:
-						self.out.config(text=f"You bought {item_name}")
+						self.write_out(f"You bought {item_name}")
 					else:
-						self.out.config(text=f"You bought a {item_name}")
+						self.write_out(f"You bought a {item_name}")
 
 					self.sub_from_inv("gold", item.cost)
 					
@@ -671,10 +492,311 @@ class GUI(object):
 							command=self.buy_item_fact(new_item_cls().name)
 						)
 				else:
-					self.out.config(
-						text="You do not have enough Gold for that"
-					)
-		return buy_specific_item
+					self.write_out("You do not have enough Gold for that")
+					
+		return buy_specific_item		
+
+
+class Battle(Screen):
+	def __init__(self, master, cur_room, flee) -> None:
+		super().__init__(master)
+		
+		#  fight screen
+		self.cbt_scr: tk.Canvas = tk.Canvas(self.frame, width=W + 100, height=H)
+		self.cbt_scr.grid(row=0, column=0, columnspan=3)
+		
+		self.att_b: tk.Button = tk.Button(
+			self.frame,
+			text="Attack",
+			command=lambda: cur_room().en.be_attacked()
+		)
+		self.att_b.grid(row=1, column=0)
+
+		self.run_b: tk.Button = tk.Button(self.frame, text="Flee", command=flee)
+		self.run_b.grid(row=1, column=2)
+
+	def update_healthbar(self, health: int, max_health: int) -> None:
+		"""Update the healthbar on the battle screen"""
+	
+		self.cbt_scr.coords(
+			"fight_healthbar",
+			10,
+			H - 30,
+			10 + (100 * health / max_health),
+			H - 10
+		)
+		self.cbt_scr.itemconfig(
+			"fight_healthbar_text",
+			text=f"{health}/{max_health}"
+		)
+
+	def show_image(self, image: ImageTk.PhotoImage) -> None:
+		"""Display the image of the enemy"""
+		
+		self.cbt_scr.create_image(
+			210,
+			40,  # 40 is the nw
+			image=image,
+			anchor="nw"
+		)
+
+	def fight(self, en_health: int, en_max_health: int, p_health: int, p_max_health: int) -> None:
+		"""Set up fight screen"""
+		
+		self.cbt_scr.delete("all")
+
+		# enemy health bar
+		self.cbt_scr.create_rectangle(W + 90, 10, W - 10, 30)
+
+		# enemy health
+		self.cbt_scr.create_rectangle(
+			W + 90,
+			10,
+			W + 90 - (100 * en_health / en_max_health),
+			30,
+			fill="red",
+			tags="en_bar"
+		)
+
+		# player healthbar
+		self.cbt_scr.create_rectangle(
+			10,
+			H - 30,
+			110,
+			H - 10
+		)
+		self.cbt_scr.create_rectangle(
+			10,
+			H - 30,
+			10 + (100 * p_health / p_max_health), H - 10,
+			fill="green",
+			tags="fight_healthbar"
+		)
+		self.cbt_scr.create_text(
+			60,
+			H - 20,
+			text=f"{p_health}/{p_max_health}",
+			tags="fight_healthbar_text"
+		)
+
+	def update_en_healthbar(self, health: int, max_health: int) -> None:
+		"""Update the enemy healthbar"""
+		
+		self.cbt_scr.coords(
+			"en_bar",
+			W + 90, 10, W + 90 - (100 * health / max_health), 30
+		)
+
+
+
+class GUI(object):
+	"""The user interface for the game"""
+
+	def __init__(
+			self,
+			inven,
+			buyable: tuple,
+			p_damage: int,
+			p_defence: int,
+			p_max_health: int,
+			player_loc,
+			cur_room,) -> None:
+
+		self.screen: str = "navigation"
+
+		self.master = tk.Tk()
+		
+		self.player_loc = player_loc
+
+		# window name
+		self.master.title(string="The Dungeon")
+		self.empty_menu = tk.Menu(self.master)
+		
+		# top level shop menu
+		self.shop = tk.Menu(self.master)
+		# drop down menu
+		self.stock = tk.Menu(self.shop, tearoff=0)
+
+		self.shop.add_cascade(menu=self.stock, label="Shop")
+		
+		buyable_items: dict = {item().name: item for item in buyable}
+		
+		# add menu to screen
+		self.master.config(menu=self.shop)
+		
+		
+		self.nav = Navigation(
+			self.master,
+			p_max_health,
+			self.player_loc,
+			self.inventory_mode,
+			cur_room,
+			self.write_out
+		)
+		
+		self.gmo = GameOver(
+			self.master
+		)
+		
+		self.inv = InventoryScreen(
+			self.master,
+			inven,
+			buyable_items,
+			self.stock,
+			self.leave_inv,
+			self.write_out
+		)
+		
+		self.bat = Battle(
+			self.master,
+			cur_room,
+			self.flee
+		)
+
+		self.init_enc_scr()
+		
+		self.stats = MultiframeWidget(
+			{
+				"nav": self.nav.frame,
+				"bat": self.bat.frame,
+				"inv": self.inv.frame
+			},
+			tk.Message,
+			text=""
+		)
+		self.stats.widgets["nav"].grid(row=1, column=1, columnspan=2)
+		self.stats.widgets["bat"].grid(row=1, column=3)
+		self.stats.widgets["inv"].grid(row=0, column=2)
+		
+		self.update_stats(p_damage, p_defence)
+		
+		self.out = MultiframeWidget(
+			{
+				"nav": self.nav.frame,
+				"bat": self.bat.frame,
+				"inv": self.inv.frame
+			},
+			tk.Message,
+			text="Welcome to The Dungeon. Come once, stay forever!",
+			width=W + 100
+		)
+		self.out.widgets["nav"].grid(row=5, column=0, columnspan=4)
+		self.out.widgets["bat"].grid(row=2, column=0, columnspan=3)
+		self.out.widgets["bat"].grid(row=2, column=1, columnspan=3)
+		
+		self.nav.show()
+		self.screen = "navigation"
+
+	def init_enc_scr(self) -> None:
+		# for non-hostile encounters
+		self.enc_frame: tk.Frame = tk.Frame(self.master)
+		
+		self.enc_scr: tk.Canvas = tk.Canvas(self.enc_frame, width=W + 100, height=H)
+		self.enc_scr.grid(row=0, column=0, columnspan=3)
+
+		self.leave_btn = tk.Button(
+			self.enc_frame, text="", command=self.leave
+		)
+
+		# ISSUE: what frame should this be on?
+		self.inter_btn: tk.Button = tk.Button(
+			self.enc_frame,
+			text="",
+			command=lambda: self.cur_room().en.interact()
+		)
+		
+		# collections of widgets
+		self.non_hostile_widgets: list[tk.Widget] = [self.inter_btn, self.leave_btn]
+
+	def show_image(self, image: ImageTk.PhotoImage, enemy: bool, place: str) -> None:
+		"""Show the image on the battle screen or the encounter screen"""
+		
+		if enemy:
+			self.bat.show_image(image)
+			return
+	
+		if image:
+			# encounter icon
+			self.enc_scr.create_image(
+				210,
+				130,  # 130 is the center
+				image=image,
+				anchor=place.lower()
+			)
+
+	def inventory_mode(self) -> None:
+		"""Display the player's inventory"""
+
+		self.nav.remove()
+		self.bat.remove()
+		
+		self.inv.show()
+
+	def dungeon_config(self, dungeon) -> None:
+		"""Configure settings that require that the dungeon object exist"""
+
+		self.dungeon = dungeon
+
+	def leave_inv(self) -> None:
+		"""Switch from the inventory screen to the previous screen"""
+
+		self.inv.remove()
+		if self.screen == "navigation":
+			self.nav.show()
+		elif self.screen == "battle":
+			self.bat.show()
+
+	def update_stats(self, damage: int, defence: int) -> None:
+		"""Update the stats for the player"""
+
+		self.stats.config(
+			text=f"Damage: {damage}\nDefence: {defence}"
+		)
+
+	def write_out(self, new_text: str) -> None:
+		"""Set the content of the out widget to display messages to the
+		player"""
+
+		self.out.config(text=new_text)
+
+	def update_healthbar(self, health: int, max_health: int) -> None:
+		"""Update the appearance of the healthbar in both the fighting screen
+		and the navigation screen"""
+
+		self.bat.update_healthbar(health, max_health)
+		self.nav.update_healthbar(health, max_health)
+
+	def leave(self) -> None:
+		"""Flee a fight or leave a room"""
+
+		if self.screen == "fight":
+			self.flee()
+		else:
+			self.enc_frame.grid_remove()
+			self.nav.show()
+			self.screen = "navigation"
+			
+			self.nav.map.create_image(
+				int(SMW * (self.player_loc[0] + .5)),
+				int(SMH * (self.player_loc[1] + .5)),
+				image=self.cur_room().en.icon,
+				anchor="center"
+			)
+
+	def clear_screen(self) -> None:
+		"""Remove all widgets"""
+
+		self.nav.remove()
+		self.bat.remove()
+		self.inv.remove()
+		self.master.config(menu=self.empty_menu)
+
+	def lose(self) -> None:
+		"""Change screen to the game over screen"""
+
+		self.screen = "game over"
+		self.clear_screen()
+		self.gmo.show()
 
 	def cur_room(self):
 		"""Return the Room object that they player is currently in"""
@@ -687,15 +809,17 @@ class GUI(object):
 
 		chance = randint(0, 100)
 		if chance > 50:
-			self.navigation_mode()
-			# create an icon for an enemy the player knows about
+			self.bat.remove()
+			self.nav.show()
+			self.screen = "navigation"
 			
+			# create an icon for an enemy the player knows about
 			self.nav.draw_enemy_marker(self.player_loc[0], self.player_loc[1])
 			
-			self.out.config(text="You got away.")
+			self.write_out("You got away.")
 		else:
 			self.cur_room().en.attack()
-			self.out.config(text="You couldn't get away.")
+			self.write_out("You couldn't get away.")
 
 
 # END

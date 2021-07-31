@@ -177,7 +177,7 @@ class Room(object):
 			self.type = DOWN_STAIRS_TYPE
 			self.init2()
 
-		gui.out.config(text=self.info)
+		gui.write_out(self.info)
 		if getattr(self.en, "alive", False):
 			self.en.meet()
 		# this isn't good practice
@@ -312,33 +312,15 @@ class Encounter(object):
 	@classmethod
 	# Class method to give access to class variables for the class.
 	# This method belongs to not just this base class
-	def show_ico(cls, place: str = "NW") -> None:
+	def show_ico(cls, place: str = "center") -> None:
 		"""Display the image of the enemy"""
 
-		if cls.image:
-			# encounter icon
-			if place == "NW":
-				# encounter icon
-				gui.cbt_scr.create_image(
-					210,
-					40,  # 40 is different from 130
-					image=cls.image,
-					anchor="nw"
-				)
-			elif place == "center":
-				# encounter icon
-				gui.cbt_scr.create_image(
-					210,
-					130,  # 130 is different from 40
-					image=cls.image,
-					anchor="center"
-				)
+		gui.show_image(cls.image, False, place)
 
-	def meet(self, disp: str = "NW") -> None:
+	def meet(self, disp: str = "center") -> None:
 		"""Start the encounter"""
 
 		gui.screen = "encounter"
-		gui.cbt_scr.delete("all")
 		self.show_ico(place=disp)
 
 
@@ -402,7 +384,9 @@ class Stairs(Encounter):
 		p.loc[:] = (self.to["x"], self.to["y"])
 
 		# gui.navigation_widgets[0] = dungeon.current_floor.disp
-		gui.navigation_mode()
+		gui.enc_frame.grid_remove()
+		gui.nav.show()
+		gui.screen = "navigation"
 
 		dungeon.current_floor.disp.coords(
 			"player",
@@ -423,8 +407,8 @@ class Stairs(Encounter):
 
 		gui.screen = "stairs"
 		gui.clear_screen()
-		gui.bat_frame.grid(row=0, column=0)
-		gui.cbt_scr.grid(row=0, column=0, columnspan=4)
+		gui.enc_frame.grid(row=0, column=0)
+		gui.enc_scr.grid(row=0, column=0, columnspan=4)
 
 		gui.inter_btn.grid(row=1, column=1)
 		gui.inter_btn.config(text="Decend" if self.dist > 0 else "Ascend")
@@ -459,53 +443,25 @@ class Enemy(Encounter):
 
 		return Gold(amount=self.max_health // 3 + self.damage // 2 + 2)
 
+	@classmethod
+	# Class method to give access to class variables for the class.
+	# This method belongs to not just this base class
+	def show_ico(cls, place: str = "NW") -> None:
+		"""Display the image of the enemy"""
+
+		gui.show_image(cls.image, True, place)
+
 	def meet(self, disp: str = "NW") -> None:
 		"""Format screen for a fight"""
+		
+		# fight comes first because it clears the screen
+		gui.bat.fight(self.health, self.max_health, p.health, p.max_health)
 
 		super().meet(disp)
 
-		gui.screen = "fight"
+		gui.screen = "battle"
 		gui.nav.remove()
-		gui.bat_frame.grid(row=0, column=0)
-
-		self.fight()
-
-	def fight(self) -> None:
-		"""Set up fight screen"""
-
-		# enemy health bar
-		gui.cbt_scr.create_rectangle(W + 90, 10, W - 10, 30)
-
-		# enemy health
-		gui.cbt_scr.create_rectangle(
-			W + 90,
-			10,
-			W + 90 - (100 * self.health / self.max_health),
-			30,
-			fill="red",
-			tags="en_bar"
-		)
-
-		# player healthbar
-		gui.cbt_scr.create_rectangle(
-			10,
-			H - 30,
-			110,
-			H - 10
-		)
-		gui.cbt_scr.create_rectangle(
-			10,
-			H - 30,
-			10 + (100 * p.health / p.max_health), H - 10,
-			fill="green",
-			tags="fight_healthbar"
-		)
-		gui.cbt_scr.create_text(
-			60,
-			H - 20,
-			text=f"{p.health}/{p.max_health}",
-			tags="fight_healthbar_text"
-		)
+		gui.bat.show()
 
 	def attack(self) -> None:
 		"""Attack the player"""
@@ -518,7 +474,7 @@ class Enemy(Encounter):
 		if p.health <= 0:
 			gui.lose()
 		gui.update_healthbar(p.health, p.max_health)
-		gui.out.config(text=f"The enemy did {str(damage_delt)} damage!")
+		gui.write_out(f"The enemy did {damage_delt} damage!")
 
 	def be_attacked(self) -> None:
 		"""The player attacks. The enemy is damaged"""
@@ -526,11 +482,11 @@ class Enemy(Encounter):
 		self.health -= p.damage
 		if self.health <= 0:
 			self.die()
-		gui.cbt_scr.coords(
-			"en_bar",
-			W + 90, 10, W + 90 - (100 * self.health / self.max_health), 30)
-		if self.alive:
-			self.attack()
+			return
+		
+		gui.bat.update_en_healthbar(self.health, self.max_health)
+		
+		self.attack()
 
 	def die(self) -> None:
 		"""The enemy dies"""
@@ -543,7 +499,7 @@ class Enemy(Encounter):
 		# display loot
 		for key, val in self.loot.items():
 			hold += f"{str(key).title()}: {val.amount}\n"
-		gui.out.config(text=hold[:-1])
+		gui.write_out(hold[:-1])
 
 		gui.nav.remove_enemy_marker(p.loc[0], p.loc[1])
 		cur_room().info = "This is an empty room."
@@ -551,7 +507,9 @@ class Enemy(Encounter):
 		# take loot
 		get_loot(self.loot)
 
-		gui.navigation_mode()
+		gui.bat.remove()
+		gui.nav.show()
+		gui.screen = "navigation"
 
 
 class Goblin(Enemy):
@@ -624,7 +582,7 @@ class UsableItem(CollectableItem):
 		# make not everything consumable? or add durability
 		# p.inven[self.name] -= 1
 
-		gui.out.config(text="Used " + self.name.title())
+		gui.write_out("Used " + self.name.title())
 
 
 class EquipableItem(UsableItem):
@@ -647,18 +605,18 @@ class EquipableItem(UsableItem):
 		"""Equip the item"""
 
 		if (
-				p.occupied_equipment().count(self.space[0])
-				>= self.space[1]
+			p.occupied_equipment().count(self.space[0])
+			>= self.space[1]
 		):
 
-			gui.out.config(
-				text=f"You can not equip more than {self.space[1]} of this"
+			gui.write_out(
+				f"You can not equip more than {self.space[1]} of this"
 			)
 			raise EquipmentFullError(
 				f"You can not equip more than {self.space[1]} of this")
 		else:
 			self.equiped = True
-			gui.out.config(text=f"You equip the {self.name}")
+			gui.write_out(f"You equip the {self.name}")
 			# should rework how inventory interacts with equipment
 			p.inven[self.name] -= 1
 
@@ -677,9 +635,9 @@ class EquipableItem(UsableItem):
 			p.equipment[self.name][1] -= 1
 			if p.equipment[self.name][1] <= 0:
 				p.equipment.pop(self.name)
-			gui.out.config(text=f"You unequip the {self.name}")
+			gui.write_out(f"You unequip the {self.name}")
 		else:
-			raise NotEquipedError(f"{self.name} is not equiped")
+			raise NotEquippedError(f"{self.name} is not equiped")
 
 
 class BuyableItem(CollectableItem):
@@ -737,7 +695,6 @@ class SlimeHeart(UsableItem):
 		gui.update_healthbar(p.health, p.max_health)
 
 
-# sword in shop
 class Sword(BuyableItem, EquipableItem):
 	"""A basic weapon"""
 
@@ -835,7 +792,7 @@ def cur_room(xy=None) -> Room:
 	room = dungeon.current_floor[x][y]
 	return room
 
-
+'''
 def restart() -> None:
 	"""Reset all the values of the game and prepare to start over"""
 
@@ -864,13 +821,14 @@ def restart() -> None:
 	p.floor = dungeon.current_floor
 
 	gui.master.mainloop()
+'''
 
 
 def get_loot(loot: dict) -> None:
 	"""Add all loot items to inventroy"""
 
 	for key, item in loot.items():
-		gui.add_to_inv(item)
+		gui.inv.add_to_inv(item)
 
 
 def file_path(file: str) -> str:
@@ -895,12 +853,11 @@ if __name__ == "__main__":
 	monsters_killed = 0
 
 	inventory = Inventory()
+	
+	buyable = (Sword, HealthPot, armor_factory(1))
 
 	p = Player(inventory)
-	gui = GUI(inventory, p.damage, p.defence, p.max_health, p.loc, cur_room)
-
-	buyable_items = (Sword, HealthPot, armor_factory(1))
-	gui.misc_config(buyable_items, restart)
+	gui = GUI(inventory, buyable, p.damage, p.defence, p.max_health, p.loc, cur_room)
 
 	get_loot({"gold": Gold(amount=STARTING_GOLD)})
 
@@ -912,3 +869,6 @@ if __name__ == "__main__":
 	p.floor = dungeon.current_floor
 
 	gui.master.mainloop()
+
+
+#END
