@@ -437,7 +437,7 @@ class InventoryScreen(Screen):
 	
 	def sub_from_inv(self, item_name: str, amount: int) -> None:
 		"""Remove some amount of an item from the player's inventory"""
-
+		
 		total = self.inven.sub(item_name, amount)
 		
 		if total <= 0:
