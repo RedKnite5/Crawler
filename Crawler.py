@@ -74,12 +74,20 @@ class Floor(object):
 		for i in range(DUN_W):  # map generation
 			column: list['Room'] = []
 			for k in range(DUN_H):
-				column.append(Room(
-					int((abs(i - (DUN_W - 1) // 2)
-						+ abs(k - (DUN_H - 1) // 2)
-						) * 1.5 * DISTANCE_DIFF + 150 * self.floor_num
-					),
-					{"x": i, "y": k, "floor": self.floor_num}))
+				column.append(
+					Room(
+						int(
+							(
+								abs(i - (DUN_W - 1) // 2)
+								+ abs(k - (DUN_H - 1) // 2)
+							)
+							* 1.5
+							* DISTANCE_DIFF
+							+ 150 * self.floor_num
+						),
+						{"x": i, "y": k, "floor": self.floor_num},
+					)
+				)
 			self.dun.append(column)
 
 		center_room: 'Room' = self.dun[(DUN_W - 1) // 2][(DUN_H - 1) // 2]
@@ -294,12 +302,12 @@ class Encounter(object):
 
 	def __init__(self, filename: str = "ImageNotFound.png") -> None:
 		"""Create the image variable
-		
+
 		image is a class variable to reduce variable initialization
 		(the repeated defining of self.image), copying of large
-		variables, reduce amount of global variables, and keep
-		related data together. It is being defined here so that
-		PhotoImage does not get called before tk has been initialised.
+		variables, and keep related data together. It is being
+		defined here so that PhotoImage does not get called before
+		tk has been initialised.
 		"""
 
 		self.name: str = "Encounter"
@@ -412,8 +420,6 @@ class Stairs(Encounter):
 		gui.enc.inter_btn.config(text="Decend" if self.dist > 0 else "Ascend")
 		gui.enc.inter_btn.config(command=self.interact)
 
-		
-
 
 class Enemy(Encounter):
 	"""General enemy class. Includes set up for fights, attacking, being
@@ -447,7 +453,7 @@ class Enemy(Encounter):
 
 	def meet(self, disp: str = "NW") -> None:
 		"""Format screen for a fight"""
-		
+
 		# fight comes first because it clears the screen
 		gui.bat.fight(self.health, self.max_health, p.health, p.max_health)
 
@@ -477,9 +483,9 @@ class Enemy(Encounter):
 		if self.health <= 0:
 			self.die()
 			return
-		
+
 		gui.bat.update_en_healthbar(self.health, self.max_health)
-		
+
 		self.attack()
 
 	def die(self) -> None:
@@ -721,7 +727,6 @@ class Sword(BuyableItem, EquipableItem):
 def armor_factory(tier: int) -> type[CollectableItem]:
 	"""Create armor class with the desired tier"""
 
-
 	class Armor(BuyableItem, EquipableItem):
 		"""Armor class that gives defence"""
 
@@ -756,7 +761,6 @@ def armor_factory(tier: int) -> type[CollectableItem]:
 				self.unequiped = False  # reset this variable
 				gui.update_stats(p.damage, p.defence)
 
-
 	return Armor  # return the class from the factory
 
 
@@ -783,6 +787,7 @@ def cur_room(xy=None) -> Room:
 
 	room = dungeon.current_floor[x][y]
 	return room
+
 
 '''
 def restart() -> None:
@@ -845,11 +850,19 @@ if __name__ == "__main__":
 	monsters_killed = 0
 
 	inventory = Inventory()
-	
+
 	buyable = (Sword, HealthPot, armor_factory(1))
 
 	p = Player(inventory)
-	gui = GUI(inventory, buyable, p.damage, p.defence, p.max_health, p.loc, cur_room)
+	gui = GUI(
+		inventory,
+		buyable,
+		p.damage,
+		p.defence,
+		p.max_health,
+		p.loc,
+		cur_room
+	)
 
 	get_loot({"gold": Gold(amount=STARTING_GOLD)})
 
@@ -863,4 +876,4 @@ if __name__ == "__main__":
 	gui.master.mainloop()
 
 
-#END
+# END

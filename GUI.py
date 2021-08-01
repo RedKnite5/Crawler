@@ -59,7 +59,6 @@ class Screen(object):
 		self.frame.focus_set()
 
 
-
 class Navigation(Screen):
 	"""The navigation screen with the map of the current floor"""
 
@@ -71,16 +70,16 @@ class Navigation(Screen):
 			inv_mode,
 			cur_room,
 			write_out) -> None:
-	
+
 		super().__init__(master)
-		
+
 		self.player_loc = p_loc
 		self.cur_room = cur_room
 		self.write_out = write_out
-		
+
 		# movement & inventory button creation
 		self.b = [tk.Button(self.frame) for _ in range(5)]
-		
+
 		directions = ["north", "west", "east", "south"]
 		for index, dire in enumerate(directions):
 			self.b[index].configure(
@@ -95,7 +94,7 @@ class Navigation(Screen):
 		self.b[2].grid(row=3, column=2)
 		self.b[3].grid(row=4, column=1)
 		self.b[4].grid(row=1, column=0)
-		
+
 		# inventory button configuration
 		self.b[4].configure(text="Inventory", command=inv_mode)
 
@@ -104,18 +103,18 @@ class Navigation(Screen):
 		self.healthbar.grid(row=0, column=0, columnspan=3)
 		# health bar drawing
 		self.healthbar.create_rectangle(10, 10, 10 + 100, 30)
-		
+
 		self.create_healthbar(p_max_health)
-		
+
 		self.map = tk.Canvas(self.frame, width=W, height=H)
 		self.map.grid(row=0, column=3, rowspan=5)
-		
+
 		self.create_display()
 		# may need to do current_floor.disp.focus_set()
 		self.map.bind("<Button 1>", self.room_info)
-		
+
 		self.nav_bindings()
-		
+
 	def create_display(self) -> None:
 		"""Create the map for the player to see"""
 
@@ -142,7 +141,7 @@ class Navigation(Screen):
 			fill="green",
 			tags="player"
 		)
-		
+
 	def create_healthbar(self, max_health: int) -> None:
 		"""Create rectangles on the navigation screen health Canvas"""
 
@@ -159,7 +158,7 @@ class Navigation(Screen):
 			text=f"{max_health}/{max_health}",  # assume full health at creation
 			tags="navigation_healthbar_text"
 		)
-		
+
 	def update_healthbar(self, health: int, max_health: int) -> None:
 		"""Update the display of the health on the navigation screen"""
 
@@ -174,10 +173,10 @@ class Navigation(Screen):
 			"navigation_healthbar_text",
 			text=f"{health}/{max_health}"
 		)
-		
+
 	def nav_bindings(self) -> None:
 		"""Bind all the relevant inputs for the nav frame"""
-		
+
 		directions = {
 			"north": "Up",
 			"south": "Down",
@@ -188,14 +187,14 @@ class Navigation(Screen):
 			self.frame.bind(f"<{relative}>", self.movement_factory(cardinal))
 
 		self.frame.bind("<Button 1>", self.mouse_click)
-		
+
 	@staticmethod
 	def mouse_click(event) -> None:
 		"""The mouse is clicked in the master window. Used to unfocus from the
 		entry widget"""
 
 		event.widget.focus()
-		
+
 	# factory necessary for tkinter key binding reasons
 	def movement_factory(_self, direction: str):
 		"""Factory for moving the character functions"""
@@ -228,11 +227,11 @@ class Navigation(Screen):
 			fill="yellow"
 		)
 		self.cur_room().visited = True
-		
+
 	def p_move(self, direction: str) -> None:
 		"""Change the player's location and enter the correct room according
 		to the direction"""
-	
+
 		self.mark_visited(*self.player_loc)
 
 		# up
@@ -251,7 +250,7 @@ class Navigation(Screen):
 		elif direction == "east" and self.player_loc[0] < DUN_W - 1:
 			self.player_loc[0] += 1
 			self.map.move("player", SMW, 0)
-			
+
 		self.mark_visited(*self.player_loc)
 		self.cur_room().enter()
 
@@ -315,10 +314,10 @@ class Navigation(Screen):
 
 class GameOver(Screen):
 	"""Screen for after the player loses"""
-	
+
 	def __init__(self, master) -> None:
 		super().__init__(master)
-		
+
 		self.game_over: tk.Canvas = tk.Canvas(
 			self.frame,
 			width=W + 100,
@@ -333,8 +332,7 @@ class GameOver(Screen):
 			font=font.Font(size=40)
 		)
 		self.game_over.grid()
-		
-		
+
 		'''
 		self.restart_button: tk.Button = tk.Button(
 			self.game_over_frame,
@@ -342,44 +340,52 @@ class GameOver(Screen):
 			command=restart,
 			width=10
 		)
-		
+
 		self.game_over.create_window(W, H * 3/4, window=self.restart_button)
 		self.restart_button.lift()
 		'''
-	
+
 
 class InventoryScreen(Screen):
 	"""Inventory screen"""
-	
-	def __init__(self, master, inven, buyable: dict, stock, leave_inv, write_out) -> None:
+
+	def __init__(
+		self,
+		master,
+		inven,
+		buyable: dict,
+		stock,
+		leave_inv,
+		write_out) -> None:
+
 		super().__init__(master)
-		
+
 		self.inven = inven
 		self.buyable_items = buyable
 		self.stock = stock
 		self.write_out = write_out
-		
+
 		for i in self.buyable_items:
 			# actual things you can buy
 			self.stock.add_command(
 				label=f"{i.title()}: {self.buyable_items[i]().cost}",
 				command=self.buy_item_fact(i)
 			)
-		
+
 		self.back_btn: tk.Button = tk.Button(
 			self.frame,
 			text="leave",
 			command=leave_inv
 		)
 		self.back_btn.grid(row=0, column=1)
-		
+
 		self.inv_scr: tk.Canvas = tk.Canvas(self.frame, width=W, height=H)
 		self.inv_scr.grid(row=0, column=0)
-		
+
 		self.inv_scr.bind("<Button 1>", self.inv_click)
-		
+
 		self.inv_images: dict[str, list[int]] = {}
-		
+
 		for w in range(INV_WIDTH):
 			for h in range(INV_HEIGHT):
 				self.inv_scr.create_rectangle(
@@ -393,12 +399,12 @@ class InventoryScreen(Screen):
 
 	def inv_click(self, event) -> None:
 		"""Use an item when you click on it in the inventory"""
-		
+
 		x: int = event.x * INV_WIDTH // W
 		y: int = event.y * INV_HEIGHT // H
-		
+
 		index: int = y * INV_WIDTH + x
-		
+
 		try:
 			if index in self.inven:
 				self.inven[index].use()
@@ -413,7 +419,7 @@ class InventoryScreen(Screen):
 		index: int = self.inven.add(item.name, item)
 		total: int = self.inven[index].amount
 		new_text = str(total) if total > 1 else ""
-		
+
 		if item.name not in self.inv_images:
 			x: int = index % INV_WIDTH
 			y: int = (index % (INV_WIDTH * INV_HEIGHT)) // INV_WIDTH
@@ -423,23 +429,23 @@ class InventoryScreen(Screen):
 				image=item.image,
 				anchor="nw"
 			)
-			
+
 			text_id: int = self.inv_scr.create_text(
 				IBW * (x + 1) - 3,
 				IBH * (y + 1) - 1,
 				text=new_text,
 				anchor="se"
 			)
-			
+
 			self.inv_images[item.name] = [icon_id, text_id]
 		else:
 			self.inv_scr.itemconfig(self.inv_images[item.name][1], text=new_text)
-	
+
 	def sub_from_inv(self, item_name: str, amount: int) -> None:
 		"""Remove some amount of an item from the player's inventory"""
-		
+
 		total = self.inven.sub(item_name, amount)
-		
+
 		if total <= 0:
 			self.inv_scr.delete(self.inv_images[item_name][0])
 			self.inv_scr.delete(self.inv_images[item_name][1])
@@ -450,7 +456,7 @@ class InventoryScreen(Screen):
 
 	def buy_item_fact(self, item_name: str, amount: int = 1, *args):
 		"""Factory for buying things in the shop"""
-		
+
 		# Can not take parameters because tkinter does not support that
 		def buy_specific_item():
 			"""Function to buy an item from the shop."""
@@ -468,7 +474,7 @@ class InventoryScreen(Screen):
 						self.write_out(f"You bought a {item_name}")
 
 					self.sub_from_inv("gold", item.cost)
-					
+
 					if hasattr(item, "tier"):
 						# replace item in list of buyable items
 						del self.buyable_items[item_name]
@@ -491,8 +497,8 @@ class InventoryScreen(Screen):
 						)
 				else:
 					self.write_out("You do not have enough Gold for that")
-					
-		return buy_specific_item		
+
+		return buy_specific_item
 
 
 class Battle(Screen):
@@ -500,11 +506,11 @@ class Battle(Screen):
 
 	def __init__(self, master, cur_room, flee) -> None:
 		super().__init__(master)
-		
+
 		#  fight screen
 		self.cbt_scr: tk.Canvas = tk.Canvas(self.frame, width=W + 100, height=H)
 		self.cbt_scr.grid(row=0, column=0, columnspan=3)
-		
+
 		self.att_b: tk.Button = tk.Button(
 			self.frame,
 			text="Attack",
@@ -517,7 +523,7 @@ class Battle(Screen):
 
 	def update_healthbar(self, health: int, max_health: int) -> None:
 		"""Update the healthbar on the battle screen"""
-	
+
 		self.cbt_scr.coords(
 			"fight_healthbar",
 			10,
@@ -532,7 +538,7 @@ class Battle(Screen):
 
 	def show_image(self, image: ImageTk.PhotoImage) -> None:
 		"""Display the image of the enemy"""
-		
+
 		self.cbt_scr.create_image(
 			210,
 			40,  # 40 is the nw
@@ -540,9 +546,14 @@ class Battle(Screen):
 			anchor="nw"
 		)
 
-	def fight(self, en_health: int, en_max_health: int, p_health: int, p_max_health: int) -> None:
+	def fight(
+		self,
+		en_health: int,
+		en_max_health: int,
+		p_health: int,
+		p_max_health: int) -> None:
 		"""Set up fight screen"""
-		
+
 		self.cbt_scr.delete("all")
 
 		# enemy health bar
@@ -581,7 +592,7 @@ class Battle(Screen):
 
 	def update_en_healthbar(self, health: int, max_health: int) -> None:
 		"""Update the enemy healthbar"""
-		
+
 		self.cbt_scr.coords(
 			"en_bar",
 			W + 90, 10, W + 90 - (100 * health / max_health), 30
@@ -593,7 +604,7 @@ class EncounterScreen(Screen):
 
 	def __init__(self, master, cur_room, leave) -> None:
 		super().__init__(master)
-		
+
 		self.enc_scr: tk.Canvas = tk.Canvas(self.frame, width=W + 100, height=H)
 		self.enc_scr.grid(row=0, column=0, columnspan=4)
 
@@ -613,14 +624,13 @@ class EncounterScreen(Screen):
 
 	def show_image(self, image: ImageTk.PhotoImage, place: str) -> None:
 		"""Show the encounter image"""
-		
+
 		self.enc_scr.create_image(
 			210,
 			130,  # 130 is the center
 			image=image,
 			anchor=place
 		)
-
 
 
 class GUI(object):
@@ -639,26 +649,25 @@ class GUI(object):
 		self.screen: str = "navigation"
 
 		self.master = tk.Tk()
-		
+
 		self.player_loc = player_loc
 
 		# window name
 		self.master.title(string="The Dungeon")
 		self.empty_menu = tk.Menu(self.master)
-		
+
 		# top level shop menu
 		self.shop = tk.Menu(self.master)
 		# drop down menu
 		self.stock = tk.Menu(self.shop, tearoff=0)
 
 		self.shop.add_cascade(menu=self.stock, label="Shop")
-		
+
 		buyable_items: dict = {item().name: item for item in buyable}
-		
+
 		# add menu to screen
 		self.master.config(menu=self.shop)
-		
-		
+
 		self.nav = Navigation(
 			self.master,
 			p_max_health,
@@ -667,11 +676,11 @@ class GUI(object):
 			cur_room,
 			self.write_out
 		)
-		
+
 		self.gmo = GameOver(
 			self.master
 		)
-		
+
 		self.inv = InventoryScreen(
 			self.master,
 			inven,
@@ -680,19 +689,19 @@ class GUI(object):
 			self.leave_inv,
 			self.write_out
 		)
-		
+
 		self.bat = Battle(
 			self.master,
 			cur_room,
 			self.flee
 		)
-		
+
 		self.enc = EncounterScreen(
 			self.master,
 			self.cur_room,
 			self.leave
 		)
-		
+
 		self.stats = MultiframeWidget(
 			{
 				"nav": self.nav.frame,
@@ -705,9 +714,9 @@ class GUI(object):
 		self.stats.widgets["nav"].grid(row=1, column=1, columnspan=2)
 		self.stats.widgets["bat"].grid(row=1, column=3)
 		self.stats.widgets["inv"].grid(row=0, column=2)
-		
+
 		self.update_stats(p_damage, p_defence)
-		
+
 		self.out = MultiframeWidget(
 			{
 				"nav": self.nav.frame,
@@ -721,17 +730,21 @@ class GUI(object):
 		self.out.widgets["nav"].grid(row=5, column=0, columnspan=4)
 		self.out.widgets["bat"].grid(row=2, column=0, columnspan=3)
 		self.out.widgets["bat"].grid(row=2, column=1, columnspan=3)
-		
+
 		self.nav.show()
 		self.screen = "navigation"
 
-	def show_image(self, image: ImageTk.PhotoImage, enemy: bool, place: str) -> None:
+	def show_image(
+		self,
+		image: ImageTk.PhotoImage,
+		enemy: bool,
+		place: str) -> None:
 		"""Show the image on the battle screen or the encounter screen"""
-		
+
 		if enemy:
 			self.bat.show_image(image)
 			return
-	
+
 		if image:
 			# encounter icon
 			self.enc.show_image(image, place.lower())
@@ -741,7 +754,7 @@ class GUI(object):
 
 		self.nav.remove()
 		self.bat.remove()
-		
+
 		self.inv.show()
 
 	def dungeon_config(self, dungeon) -> None:
@@ -787,7 +800,7 @@ class GUI(object):
 			self.enc.remove()
 			self.nav.show()
 			self.screen = "navigation"
-			
+
 			self.nav.draw_encounter(
 				self.cur_room().en.icon,
 				*self.player_loc,
@@ -822,10 +835,10 @@ class GUI(object):
 			self.bat.remove()
 			self.nav.show()
 			self.screen = "navigation"
-			
+
 			# create an icon for an enemy the player knows about
 			self.nav.draw_enemy_marker(*self.player_loc)
-			
+
 			self.write_out("You got away.")
 		else:
 			self.cur_room().en.attack()
