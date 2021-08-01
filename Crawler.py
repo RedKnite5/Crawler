@@ -384,7 +384,7 @@ class Stairs(Encounter):
 		p.loc[:] = (self.to["x"], self.to["y"])
 
 		# gui.navigation_widgets[0] = dungeon.current_floor.disp
-		gui.enc_frame.grid_remove()
+		gui.enc.remove()
 		gui.nav.show()
 		gui.screen = "navigation"
 
@@ -407,18 +407,12 @@ class Stairs(Encounter):
 
 		gui.screen = "stairs"
 		gui.clear_screen()
-		gui.enc_frame.grid(row=0, column=0)
-		gui.enc_scr.grid(row=0, column=0, columnspan=4)
+		gui.enc.show()
 
-		gui.inter_btn.grid(row=1, column=1)
-		gui.inter_btn.config(text="Decend" if self.dist > 0 else "Ascend")
-		gui.inter_btn.config(command=self.interact)
+		gui.enc.inter_btn.config(text="Decend" if self.dist > 0 else "Ascend")
+		gui.enc.inter_btn.config(command=self.interact)
 
-		gui.leave_btn.grid(row=1, column=2)
-		# Having a button labeled "Leave" also sounds like going down
-		# the stairs
-		gui.leave_btn.config(text="Leave")
-		#gui.leave_btn.config(command=self.leave)
+		
 
 
 class Enemy(Encounter):

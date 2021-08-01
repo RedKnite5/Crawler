@@ -8,8 +8,6 @@ import tkinter as tk
 from tkinter import font
 from random import randint
 
-#from PIL import Image     # type: ignore
-#from PIL import ImageOps  # type: ignore
 from PIL import ImageTk   # type: ignore
 
 from errors import *
@@ -69,14 +67,12 @@ class Navigation(Screen):
 			self,
 			master,
 			p_max_health: int,
-			p_loc,
+			p_loc: list[int],
 			inv_mode,
 			cur_room,
 			write_out) -> None:
 	
 		super().__init__(master)
-		#self.frame: tk.Frame = tk.Frame(master)
-		
 		
 		self.player_loc = p_loc
 		self.cur_room = cur_room
@@ -209,7 +205,7 @@ class Navigation(Screen):
 
 			"""
 			if self.screen == "stairs":
-				self.enc_frame.grid_remove()
+				self.enc.remove()
 				self.nav.show()
 				self.screen = "navigation"
 
@@ -237,7 +233,7 @@ class Navigation(Screen):
 		"""Change the player's location and enter the correct room according
 		to the direction"""
 	
-		self.mark_visited(self.player_loc[0], self.player_loc[1])
+		self.mark_visited(*self.player_loc)
 
 		# up
 		if direction == "north" and self.player_loc[1] > 0:
@@ -256,7 +252,7 @@ class Navigation(Screen):
 			self.player_loc[0] += 1
 			self.map.move("player", SMW, 0)
 			
-		self.mark_visited(self.player_loc[0], self.player_loc[1])
+		self.mark_visited(*self.player_loc)
 		self.cur_room().enter()
 
 	def room_info(self, event) -> None:
@@ -353,6 +349,8 @@ class GameOver(Screen):
 	
 
 class InventoryScreen(Screen):
+	"""Inventory screen"""
+	
 	def __init__(self, master, inven, buyable: dict, stock, leave_inv, write_out) -> None:
 		super().__init__(master)
 		
@@ -390,7 +388,7 @@ class InventoryScreen(Screen):
 					IBW * (w + 1) - 2,
 					IBH * (h + 1) - 2,
 					fill="grey",
-					tags=f"{str(w)},{str(h)}"
+					tags=f"{w},{h}"
 				)
 
 	def inv_click(self, event) -> None:
@@ -498,6 +496,8 @@ class InventoryScreen(Screen):
 
 
 class Battle(Screen):
+	"""Screen for fighting enemies"""
+
 	def __init__(self, master, cur_room, flee) -> None:
 		super().__init__(master)
 		
@@ -588,6 +588,40 @@ class Battle(Screen):
 		)
 
 
+class EncounterScreen(Screen):
+	"""Encounter screen of non hostile nature"""
+
+	def __init__(self, master, cur_room, leave) -> None:
+		super().__init__(master)
+		
+		self.enc_scr: tk.Canvas = tk.Canvas(self.frame, width=W + 100, height=H)
+		self.enc_scr.grid(row=0, column=0, columnspan=4)
+
+		# Having a button labeled "Leave" also sounds like going down
+		# the stairs
+		self.leave_btn = tk.Button(
+			self.frame, text="Leave", command=leave
+		)
+		self.leave_btn.grid(row=1, column=2)
+
+		self.inter_btn: tk.Button = tk.Button(
+			self.frame,
+			text="",
+			command=lambda: cur_room().en.interact()
+		)
+		self.inter_btn.grid(row=1, column=1)
+
+	def show_image(self, image: ImageTk.PhotoImage, place: str) -> None:
+		"""Show the encounter image"""
+		
+		self.enc_scr.create_image(
+			210,
+			130,  # 130 is the center
+			image=image,
+			anchor=place
+		)
+
+
 
 class GUI(object):
 	"""The user interface for the game"""
@@ -652,8 +686,12 @@ class GUI(object):
 			cur_room,
 			self.flee
 		)
-
-		self.init_enc_scr()
+		
+		self.enc = EncounterScreen(
+			self.master,
+			self.cur_room,
+			self.leave
+		)
 		
 		self.stats = MultiframeWidget(
 			{
@@ -687,27 +725,6 @@ class GUI(object):
 		self.nav.show()
 		self.screen = "navigation"
 
-	def init_enc_scr(self) -> None:
-		# for non-hostile encounters
-		self.enc_frame: tk.Frame = tk.Frame(self.master)
-		
-		self.enc_scr: tk.Canvas = tk.Canvas(self.enc_frame, width=W + 100, height=H)
-		self.enc_scr.grid(row=0, column=0, columnspan=3)
-
-		self.leave_btn = tk.Button(
-			self.enc_frame, text="", command=self.leave
-		)
-
-		# ISSUE: what frame should this be on?
-		self.inter_btn: tk.Button = tk.Button(
-			self.enc_frame,
-			text="",
-			command=lambda: self.cur_room().en.interact()
-		)
-		
-		# collections of widgets
-		self.non_hostile_widgets: list[tk.Widget] = [self.inter_btn, self.leave_btn]
-
 	def show_image(self, image: ImageTk.PhotoImage, enemy: bool, place: str) -> None:
 		"""Show the image on the battle screen or the encounter screen"""
 		
@@ -717,12 +734,7 @@ class GUI(object):
 	
 		if image:
 			# encounter icon
-			self.enc_scr.create_image(
-				210,
-				130,  # 130 is the center
-				image=image,
-				anchor=place.lower()
-			)
+			self.enc.show_image(image, place.lower())
 
 	def inventory_mode(self) -> None:
 		"""Display the player's inventory"""
@@ -772,23 +784,22 @@ class GUI(object):
 		if self.screen == "fight":
 			self.flee()
 		else:
-			self.enc_frame.grid_remove()
+			self.enc.remove()
 			self.nav.show()
 			self.screen = "navigation"
 			
-			self.nav.map.create_image(
-				int(SMW * (self.player_loc[0] + .5)),
-				int(SMH * (self.player_loc[1] + .5)),
-				image=self.cur_room().en.icon,
-				anchor="center"
+			self.nav.draw_encounter(
+				self.cur_room().en.icon,
+				*self.player_loc,
 			)
 
 	def clear_screen(self) -> None:
-		"""Remove all widgets"""
+		"""Remove all frames and menus"""
 
 		self.nav.remove()
 		self.bat.remove()
 		self.inv.remove()
+		self.enc.remove()
 		self.master.config(menu=self.empty_menu)
 
 	def lose(self) -> None:
@@ -801,10 +812,9 @@ class GUI(object):
 	def cur_room(self):
 		"""Return the Room object that they player is currently in"""
 
-		room = self.dungeon.current_floor[self.player_loc[0]][self.player_loc[1]]
-		return room
+		return self.dungeon.current_floor[self.player_loc[0]][self.player_loc[1]]
 
-	def flee(self):
+	def flee(self) -> None:
 		"""Leave a fight without winning or losing"""
 
 		chance = randint(0, 100)
@@ -814,7 +824,7 @@ class GUI(object):
 			self.screen = "navigation"
 			
 			# create an icon for an enemy the player knows about
-			self.nav.draw_enemy_marker(self.player_loc[0], self.player_loc[1])
+			self.nav.draw_enemy_marker(*self.player_loc)
 			
 			self.write_out("You got away.")
 		else:
