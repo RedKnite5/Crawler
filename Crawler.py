@@ -611,8 +611,6 @@ class EquipableItem(UsableItem):
 		else:
 			self.equiped = True
 			gui.write_out(f"You equip the {self.name}")
-			# should rework how inventory interacts with equipment
-			p.inven[self.name] -= 1
 
 			if self.space[0] not in p.occupied_equipment():
 				p.equipment[self.name] = [self.space, 1, self]
