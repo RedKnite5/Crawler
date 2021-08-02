@@ -113,7 +113,7 @@ class Inventory(object):
 			self.data[key][0] -= amount
 
 			count = self.data[key][0].amount
-			if count <= 0:
+			if count <= 0 and key != "gold":
 				index = self.data[key][1]
 				del self.data[key]
 				del self.flat[index]
@@ -121,7 +121,7 @@ class Inventory(object):
 			self.flat[key] -= amount
 
 			count = self.flat[key].amount
-			if count <= 0:
+			if count <= 0 and key != "gold":
 				name = self.flat[key].name
 				del self.flat[key]
 				del self.data[name]

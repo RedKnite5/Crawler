@@ -377,14 +377,20 @@ class InventoryScreen(Screen):
 			text="leave",
 			command=leave_inv
 		)
-		self.back_btn.grid(row=0, column=1)
+		self.back_btn.grid(row=1, column=1)
 
 		self.inv_scr: tk.Canvas = tk.Canvas(self.frame, width=W, height=H)
-		self.inv_scr.grid(row=0, column=0)
+		self.inv_scr.grid(row=0, column=0, rowspan=2)
 
 		self.inv_scr.bind("<Button 1>", self.inv_click)
 
 		self.inv_images: dict[str, list[int]] = {}
+		
+		self.draw_grid()
+		
+
+	def draw_grid(self):
+		"""Draw the inventory slot boxes"""
 
 		for w in range(INV_WIDTH):
 			for h in range(INV_HEIGHT):
@@ -407,8 +413,9 @@ class InventoryScreen(Screen):
 
 		try:
 			if index in self.inven:
-				self.inven[index].use()
-				self.sub_from_inv(self.inven[index].name, 1)
+				success = self.inven[index].use()
+				if success:
+					self.sub_from_inv(self.inven[index].name, 1)
 		except AttributeError:
 			pass
 
@@ -446,12 +453,12 @@ class InventoryScreen(Screen):
 
 		total = self.inven.sub(item_name, amount)
 
-		if total <= 0:
+		if total <= 0 and item_name != "gold":
 			self.inv_scr.delete(self.inv_images[item_name][0])
 			self.inv_scr.delete(self.inv_images[item_name][1])
 			del self.inv_images[item_name]
 		else:
-			new_text = str(total) if total > 1 else ""
+			new_text = str(total) if total > 1 or item_name == "gold" else ""
 			self.inv_scr.itemconfig(self.inv_images[item_name][1], text=new_text)
 
 	def buy_item_fact(self, item_name: str, amount: int = 1, *args):
@@ -477,8 +484,9 @@ class InventoryScreen(Screen):
 
 					if hasattr(item, "tier"):
 						# replace item in list of buyable items
+						
+						new_item_cls = self.buyable_items[item_name].factory(item.tier + 1)
 						del self.buyable_items[item_name]
-						new_item_cls = item.factory(item.tier + 1)
 						self.buyable_items[new_item_cls().name] = new_item_cls
 
 						# replace item in the menu
@@ -713,7 +721,7 @@ class GUI(object):
 		)
 		self.stats.widgets["nav"].grid(row=1, column=1, columnspan=2)
 		self.stats.widgets["bat"].grid(row=1, column=3)
-		self.stats.widgets["inv"].grid(row=0, column=2)
+		self.stats.widgets["inv"].grid(row=0, column=1)
 
 		self.update_stats(p_damage, p_defence)
 
@@ -729,7 +737,7 @@ class GUI(object):
 		)
 		self.out.widgets["nav"].grid(row=5, column=0, columnspan=4)
 		self.out.widgets["bat"].grid(row=2, column=0, columnspan=3)
-		self.out.widgets["bat"].grid(row=2, column=1, columnspan=3)
+		self.out.widgets["inv"].grid(row=3, column=0, columnspan=2)
 
 		self.nav.show()
 		self.screen = "navigation"

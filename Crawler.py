@@ -23,7 +23,7 @@ from config import *
 #       not produce any message.
 # ToDo: Change how equipping stuff works so that it doesn't remove it from
 #       the inventory, just puts a marker by it.
-# ToDo: Equipping a sword wont remove all swords from your inventory
+# ToDo: Unequip stuff
 # ToDo: fix all issues labeled: 'BUG:'
 
 
@@ -572,17 +572,18 @@ class UsableItem(CollectableItem):
 
 		self.name: str = "undefined_usable_item"
 
-	def use(self) -> None:
+	def use(self) -> bool:
 		"""Use the item for what ever purpose it has"""
 
 		if p.inven[self.name].amount <= 0:
-			raise UseItemWithZeroError(f"You have 0 {self.name}s")
+			return False
+			# raise UseItemWithZeroError(f"You have 0 {self.name}s")
 
 		# should later change how consumable things work
 		# make not everything consumable? or add durability
-		# p.inven[self.name] -= 1
 
 		gui.write_out("Used " + self.name.title())
+		return True
 
 
 class EquipableItem(UsableItem):
@@ -596,12 +597,15 @@ class EquipableItem(UsableItem):
 		# would prefer for this to be a temp variable
 		self.equiped: bool = False
 
-	def use(self) -> None:
+	def use(self) -> bool:
 		"""Using an equipable item equips it"""
-		super().use()
-		self.equip()
 
-	def equip(self) -> None:
+		success = super().use()
+		if success:
+			success = self.equip()
+		return success
+
+	def equip(self) -> bool:
 		"""Equip the item"""
 
 		if (
@@ -612,8 +616,7 @@ class EquipableItem(UsableItem):
 			gui.write_out(
 				f"You can not equip more than {self.space[1]} of this"
 			)
-			raise EquipmentFullError(
-				f"You can not equip more than {self.space[1]} of this")
+			return False
 		else:
 			self.equiped = True
 			gui.write_out(f"You equip the {self.name}")
@@ -622,6 +625,7 @@ class EquipableItem(UsableItem):
 				p.equipment[self.name] = [self.space, 1, self]
 			else:
 				p.equipment[self.name][1] += 1
+			return True
 
 	def unequip(self) -> None:
 		"""Unequip the item"""
@@ -635,7 +639,7 @@ class EquipableItem(UsableItem):
 				p.equipment.pop(self.name)
 			gui.write_out(f"You unequip the {self.name}")
 		else:
-			raise NotEquippedError(f"{self.name} is not equiped")
+			gui.write_out(f"{self.name} is not equiped")
 
 
 class BuyableItem(CollectableItem):
@@ -664,15 +668,16 @@ class HealthPot(UsableItem, BuyableItem):
 		self.cost: int = int(100 * COST_MUL)
 		self.name: str = "health potion"
 
-	def use(self) -> None:
+	def use(self) -> bool:
 		"""Restore health"""
 
-		super().use()
+		success = super().use()
 		p.health += HEAL_POT_VAL
 		if p.health > p.max_health:
 			p.health = p.max_health
 
 		gui.update_healthbar(p.health, p.max_health)
+		return success
 
 
 class SlimeHeart(UsableItem):
@@ -686,11 +691,12 @@ class SlimeHeart(UsableItem):
 	def use(self) -> None:
 		"""Increase max health"""
 
-		super().use()
+		success = super().use()
 		p.max_health += SLIME_HEART_VAL
 		p.health += SLIME_HEART_VAL
 
 		gui.update_healthbar(p.health, p.max_health)
+		return success
 
 
 class Sword(BuyableItem, EquipableItem):
@@ -702,15 +708,16 @@ class Sword(BuyableItem, EquipableItem):
 		self.cost = int(50 * COST_MUL)
 		self.space = ("1 hand", 2)
 
-	def equip(self) -> None:
+	def equip(self) -> bool:
 		"""Equip the sword"""
 
-		super().equip()
+		success = super().equip()
 		if self.equiped:
 			p.damage += 5
 			# reset this variable
 			self.equiped = False
 			gui.update_stats(p.damage, p.defence)
+		return success
 
 	def unequip(self) -> None:
 		"""Remove the sword"""
@@ -723,45 +730,53 @@ class Sword(BuyableItem, EquipableItem):
 			gui.update_stats(p.damage, p.defence)
 
 
+class Armor(BuyableItem, EquipableItem):
+	"""Armor class that gives defence"""
+
+	# here so that a higher tier class can be generated from this one
+	#factory = staticmethod(armor_factory)
+
+	# what if kwargs contains "tier=1.2"? I don't know what to
+	# do about that
+	def __init__(self, tier: int, *args, **kwargs) -> None:
+		super().__init__(*args, **kwargs)
+		self.name: str = f"tier {tier} armor"
+		self.tier: int = tier
+		self.cost = int(COST_MUL * 100 * self.tier)
+		self.space = ("body", 1)
+		self.plural = True
+
+	def equip(self) -> None:
+		"""Wear the armor"""
+
+		success = super().equip()
+		if self.equiped:
+			p.defence += 5 + 5 * self.tier
+			self.equiped = False  # reset this variable
+			gui.update_stats(p.damage, p.defence)
+		return success
+
+	def unequip(self) -> None:
+		"""Take off the armor"""
+
+		super().unequip()
+		if self.unequiped:
+			p.defence -= 5 + 5 * self.tier
+			self.unequiped = False  # reset this variable
+			gui.update_stats(p.damage, p.defence)
+
 # needed to create different tiers of armor dynamically
-def armor_factory(tier: int) -> type[CollectableItem]:
+def armor_factory(tier: int):
 	"""Create armor class with the desired tier"""
 
-	class Armor(BuyableItem, EquipableItem):
-		"""Armor class that gives defence"""
+	def armor_proxy() -> CollectableItem:
+		"""Return an instance of armor with the correct tier"""
 
-		# here so that a higher tier class can be generated from this one
-		factory = staticmethod(armor_factory)
+		return Armor(tier)
+	
+	armor_proxy.factory = armor_factory
 
-		# what if kwargs contains "tier=1.2"? I don't know what to
-		# do about that
-		def __init__(self, *args, **kwargs) -> None:
-			super().__init__(*args, **kwargs)
-			self.name: str = f"tier {tier} armor"
-			self.tier: int = tier
-			self.cost = int(COST_MUL * 100 * self.tier)
-			self.space = ("body", 1)
-			self.plural = True
-
-		def equip(self) -> None:
-			"""Wear the armor"""
-
-			super().equip()
-			if self.equiped:
-				p.defence += 5 + 5 * self.tier
-				self.equiped = False  # reset this variable
-				gui.update_stats(p.damage, p.defence)
-
-		def unequip(self) -> None:
-			"""Take off the armor"""
-
-			super().unequip()
-			if self.unequiped:
-				p.defence -= 5 + 5 * self.tier
-				self.unequiped = False  # reset this variable
-				gui.update_stats(p.damage, p.defence)
-
-	return Armor  # return the class from the factory
+	return armor_proxy  # return the class from the factory
 
 
 equipment = {
