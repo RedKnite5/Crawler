@@ -19,12 +19,9 @@ from config import *
 
 #   python Crawler.py
 
-# ToDo: If you equip and unequip a sword, further attempts to unequip will
-#       not produce any message.
-# ToDo: Change how equipping stuff works so that it doesn't remove it from
-#       the inventory, just puts a marker by it.
 # ToDo: Unequip stuff
-# ToDo: fix all issues labeled: 'BUG:'
+# ToDo: store equipment differently
+# TODo: tests
 
 
 class Dungeon(object):

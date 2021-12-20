@@ -384,12 +384,17 @@ class InventoryScreen(Screen):
 
 		self.inv_scr.bind("<Button 1>", self.inv_click)
 
-		self.inv_images: dict[str, list[int]] = {}
+		self.equip_scr: tk.Canvas = tk.Canvas(self.frame, width=IBW * 3, height=H)
+		self.equip_scr.grid(row=0, column=3, rowspan=2)
 		
-		self.draw_grid()
-		
+		self.equip_scr.bind("<Button 1>", self.equip_click)
 
-	def draw_grid(self):
+		self.inv_images: dict[str, list[int]] = {}
+
+		self.draw_grid()
+		self.draw_equip_slots()
+
+	def draw_grid(self) -> None:
 		"""Draw the inventory slot boxes"""
 
 		for w in range(INV_WIDTH):
@@ -402,6 +407,45 @@ class InventoryScreen(Screen):
 					fill="grey",
 					tags=f"{w},{h}"
 				)
+
+	def draw_equip_slots(self) -> None:
+		"""Draw equipment slots"""
+
+		slots = ["helmet", "chestplate", "greaves", "boots"]
+		for i in range(4):
+			self.equip_scr.create_rectangle(
+				IBW + 2,
+				IBH * i + 2,
+				IBW * 2 - 2,
+				IBH * (i + 1) - 2,
+				fill="grey",
+				tags=slots[0]
+			)
+			
+		self.equip_scr.create_rectangle(
+			2,
+			int(IBH * 1.5) + 2,
+			IBW - 2,
+			int(IBH * 2.5) + 2,
+			fill="grey",
+			tags=slots[0]
+		)
+		self.equip_scr.create_rectangle(
+			IBW * 2 + 2,
+			int(IBH * 1.5) + 2,
+			IBW * 3 - 2,
+			int(IBH * 2.5) + 2,
+			fill="grey",
+			tags=slots[0]
+		)
+		
+	def equip_click(self, event) -> None:
+		""" """
+		
+		x: int = event.x * 3 // W
+		y: int = event.y * 4 // H
+		
+		
 
 	def inv_click(self, event) -> None:
 		"""Use an item when you click on it in the inventory"""
@@ -657,6 +701,7 @@ class GUI(object):
 		self.screen: str = "navigation"
 
 		self.master = tk.Tk()
+		self.master.geometry("%dx%d+%d+%d" % (W + 300, H + 70, 0, 0))
 
 		self.player_loc = player_loc
 
