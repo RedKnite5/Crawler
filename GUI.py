@@ -2,16 +2,30 @@
 
 # GUI.py
 
-__all__ = ["GUI"]
-
+from __future__ import annotations
 import tkinter as tk
 from tkinter import font
 from random import randint
+from typing import TYPE_CHECKING, Protocol
+from collections.abc import Callable, Sequence
 
 from PIL import ImageTk   # type: ignore
 
 from errors import *
 from config import *
+
+if TYPE_CHECKING:
+	from inven import Inventory
+	from Crawler import BuyableItem, Room
+
+	class OptionalSequenceOfInts(Protocol):
+		def __call__(self, xy: Sequence[int] | None = None) -> Room: ...
+	
+	class TkEventOrNone(Protocol):
+		def __call__(self, event: tk.Event | None = None) -> None: ...
+
+
+__all__ = ["GUI"]
 
 
 class MultiframeWidget(object):
@@ -44,7 +58,7 @@ class MultiframeWidget(object):
 class Screen(object):
 	"""Base class for different screens"""
 
-	def __init__(self, master) -> None:
+	def __init__(self, master: tk.Tk) -> None:
 		self.frame: tk.Frame = tk.Frame(master)
 
 	def remove(self) -> None:
@@ -64,17 +78,17 @@ class Navigation(Screen):
 
 	def __init__(
 			self,
-			master,
+			master: tk.Tk,
 			p_max_health: int,
 			p_loc: list[int],
-			inv_mode,
-			cur_room,
-			write_out) -> None:
+			inv_mode: Callable[[], None],
+			cur_room: OptionalSequenceOfInts,
+			write_out: Callable[[str], None]) -> None:
 
 		super().__init__(master)
 
-		self.player_loc = p_loc
-		self.cur_room = cur_room
+		self.player_loc: list[int] = p_loc
+		self.cur_room: OptionalSequenceOfInts = cur_room
 		self.write_out = write_out
 
 		# movement & inventory button creation
@@ -196,20 +210,12 @@ class Navigation(Screen):
 		event.widget.focus()
 
 	# factory necessary for tkinter key binding reasons
-	def movement_factory(_self, direction: str):
+	def movement_factory(_self, direction: str) -> TkEventOrNone:
 		"""Factory for moving the character functions"""
 
-		def move_func(self, event=None) -> None:
+		def move_func(self, event: tk.Event | None = None) -> None:
 			"""Move in a direction"""
 
-			"""
-			if self.screen == "stairs":
-				self.enc.remove()
-				self.nav.show()
-				self.screen = "navigation"
-
-			if self.screen != "fight":
-			"""
 			self.p_move(direction)
 
 		if not hasattr(type(_self), f"move_{direction}"):
@@ -384,17 +390,12 @@ class InventoryScreen(Screen):
 
 		self.inv_scr.bind("<Button 1>", self.inv_click)
 
-		self.equip_scr: tk.Canvas = tk.Canvas(self.frame, width=IBW * 3, height=H)
-		self.equip_scr.grid(row=0, column=3, rowspan=2)
-		
-		self.equip_scr.bind("<Button 1>", self.equip_click)
-
 		self.inv_images: dict[str, list[int]] = {}
-
+		
 		self.draw_grid()
-		self.draw_equip_slots()
+		
 
-	def draw_grid(self) -> None:
+	def draw_grid(self):
 		"""Draw the inventory slot boxes"""
 
 		for w in range(INV_WIDTH):
@@ -407,45 +408,6 @@ class InventoryScreen(Screen):
 					fill="grey",
 					tags=f"{w},{h}"
 				)
-
-	def draw_equip_slots(self) -> None:
-		"""Draw equipment slots"""
-
-		slots = ["helmet", "chestplate", "greaves", "boots"]
-		for i in range(4):
-			self.equip_scr.create_rectangle(
-				IBW + 2,
-				IBH * i + 2,
-				IBW * 2 - 2,
-				IBH * (i + 1) - 2,
-				fill="grey",
-				tags=slots[0]
-			)
-			
-		self.equip_scr.create_rectangle(
-			2,
-			int(IBH * 1.5) + 2,
-			IBW - 2,
-			int(IBH * 2.5) + 2,
-			fill="grey",
-			tags=slots[0]
-		)
-		self.equip_scr.create_rectangle(
-			IBW * 2 + 2,
-			int(IBH * 1.5) + 2,
-			IBW * 3 - 2,
-			int(IBH * 2.5) + 2,
-			fill="grey",
-			tags=slots[0]
-		)
-		
-	def equip_click(self, event) -> None:
-		""" """
-		
-		x: int = event.x * 3 // W
-		y: int = event.y * 4 // H
-		
-		
 
 	def inv_click(self, event) -> None:
 		"""Use an item when you click on it in the inventory"""
@@ -690,20 +652,19 @@ class GUI(object):
 
 	def __init__(
 			self,
-			inven,
-			buyable: tuple,
+			inven: Inventory,
+			buyable: tuple[Callable[[], BuyableItem]],
 			p_damage: int,
 			p_defence: int,
 			p_max_health: int,
-			player_loc,
-			cur_room,) -> None:
+			player_loc: list[int],
+			cur_room: OptionalSequenceOfInts) -> None:
 
 		self.screen: str = "navigation"
 
 		self.master = tk.Tk()
-		self.master.geometry("%dx%d+%d+%d" % (W + 300, H + 70, 0, 0))
 
-		self.player_loc = player_loc
+		self.player_loc: list[int] = player_loc
 
 		# window name
 		self.master.title(string="The Dungeon")
@@ -716,7 +677,7 @@ class GUI(object):
 
 		self.shop.add_cascade(menu=self.stock, label="Shop")
 
-		buyable_items: dict = {item().name: item for item in buyable}
+		buyable_items: dict[str, BuyableItem] = {item().name: item for item in buyable}
 
 		# add menu to screen
 		self.master.config(menu=self.shop)

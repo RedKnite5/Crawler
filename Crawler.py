@@ -1,11 +1,10 @@
-#!/cygdrive/c/Users/RedKnite/Appdata/local/programs/Python/Python38/python.exe
-
 """The main Crawler game"""
 
 import random
 from functools import total_ordering
 from math import atan, pi, exp
 import os
+from typing import Callable, Sequence
 
 from PIL import Image  # type: ignore
 from PIL import ImageOps  # type: ignore
@@ -685,7 +684,7 @@ class SlimeHeart(UsableItem):
 
 		self.name: str = "slime heart"
 
-	def use(self) -> None:
+	def use(self) -> bool:
 		"""Increase max health"""
 
 		success = super().use()
@@ -743,7 +742,7 @@ class Armor(BuyableItem, EquipableItem):
 		self.space = ("body", 1)
 		self.plural = True
 
-	def equip(self) -> None:
+	def equip(self) -> bool:
 		"""Wear the armor"""
 
 		success = super().equip()
@@ -788,7 +787,7 @@ max_use_body_part = {
 }
 
 
-def cur_room(xy=None) -> Room:
+def cur_room(xy: Sequence[int] | None = None) -> Room:
 	"""Return the Room object that they player is currently in"""
 
 	if xy is None:
@@ -863,7 +862,7 @@ if __name__ == "__main__":
 
 	inventory = Inventory()
 
-	buyable = (Sword, HealthPot, armor_factory(1))
+	buyable: tuple[Callable[[], BuyableItem]] = (Sword, HealthPot, armor_factory(1))
 
 	p = Player(inventory)
 	gui = GUI(

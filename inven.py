@@ -1,7 +1,14 @@
 """Module for the inventory class """
 
+from __future__ import annotations
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
+
 from errors import *
 from config import *
+
+if TYPE_CHECKING:
+	from Crawler import CollectableItem
 
 __all__ = ["Inventory"]
 
@@ -9,10 +16,10 @@ __all__ = ["Inventory"]
 class InventoryIterator(object):
 	"""Iterator for the inventory class"""
 
-	def __init__(self, d_iter) -> None:
+	def __init__(self, d_iter: Iterator[CollectableItem]) -> None:
 		self.d = d_iter
 
-	def __iter__(self):
+	def __iter__(self) -> Iterator:
 		return self
 
 	def __next__(self):
@@ -26,14 +33,14 @@ class Inventory(object):
 
 		# every item is stored under its name as: [item, index] in data
 		# and under index as: item in flat
-		self.data: dict = {}
-		self.flat: dict = {}
+		self.data: dict[str, list[CollectableItem, int]] = {}
+		self.flat: dict[int, CollectableItem] = {}
 		self.pages: int = 1
 
 	def __getattr__(self, attr: str):
 		return getattr(self.data, attr)
 
-	def __getitem__(self, key):
+	def __getitem__(self, key: str | int) -> CollectableItem:
 		if isinstance(key, str):
 			return self.data[key][0]
 		elif isinstance(key, int):
@@ -41,7 +48,7 @@ class Inventory(object):
 
 		raise InvalidInventoryKey(f"type: {type(key)}")
 
-	def __setitem__(self, key, item) -> None:
+	def __setitem__(self, key: str | int, item: CollectableItem) -> None:
 		if isinstance(key, str):
 			if key in self.data:
 				num = self.data[key][1]
@@ -55,13 +62,13 @@ class Inventory(object):
 		else:
 			raise InvalidInventoryKey(f"type: {type(key)}")
 
-	def __delitem__(self, key) -> None:
+	def __delitem__(self, key: str | int) -> None:
 		if isinstance(key, str):
-			num = self.data[key][1]
+			num: int = self.data[key][1]
 			del self.data[key]
 			del self.flat[num]
 		elif isinstance(key, int):
-			name = self.flat[key].name
+			name: str = self.flat[key].name
 			del self.flat[key]
 			del self.data[name]
 		else:
@@ -70,7 +77,7 @@ class Inventory(object):
 	def __len__(self) -> int:
 		return len(self.data)
 
-	def __contains__(self, key) -> bool:
+	def __contains__(self, key: str | int) -> bool:
 		if isinstance(key, str):
 			return key in self.data
 		elif isinstance(key, int):
@@ -104,7 +111,7 @@ class Inventory(object):
 			self.pages += 1
 		return index
 
-	def sub(self, key, amount: int) -> int:
+	def sub(self, key: str | int, amount: int) -> int:
 		"""Remove a certain amount of an item from the inventory and remove
 		it from both dictionaries if appropriate"""
 
