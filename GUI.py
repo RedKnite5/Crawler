@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 	class TkEventOrNone(Protocol):
 		def __call__(self, event: tk.Event | None = None) -> None: ...
 
-
 __all__ = ["GUI"]
 
 
