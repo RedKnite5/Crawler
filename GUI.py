@@ -2,8 +2,6 @@
 
 # GUI.py
 
-__all__ = ["GUI"]
-
 import tkinter as tk
 from tkinter import font
 from random import randint
@@ -13,6 +11,7 @@ from PIL import ImageTk   # type: ignore
 from errors import *
 from config import *
 
+__all__ = ["GUI"]
 
 class MultiframeWidget(object):
 	"""Widgets which belong on more than one screen. Create multiple instances
