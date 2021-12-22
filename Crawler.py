@@ -4,7 +4,12 @@ import random
 from functools import total_ordering
 from math import atan, pi, exp
 import os
-from typing import Callable, Sequence
+from typing import (TYPE_CHECKING,
+					Callable,
+					Sequence,
+					ClassVar,
+					Iterator,
+					Type)
 
 from PIL import Image  # type: ignore
 from PIL import ImageOps  # type: ignore
@@ -22,6 +27,8 @@ from config import *
 # ToDo: store equipment differently
 # TODo: tests
 
+if TYPE_CHECKING:
+	Space = tuple[str, int]
 
 class Dungeon(object):
 	"""Contains the Rooms in a structured way"""
@@ -30,14 +37,14 @@ class Dungeon(object):
 		self.floors: list['Floor'] = [Floor(0)]
 		self.floor_num: int = 0
 
-	def __getattr__(self, attr: str):
+	def __getattr__(self, attr: str) -> 'Floor':
 		if attr == "current_floor":
 			return self.floors[self.floor_num]
 
 	def __getitem__(self, index: int) -> 'Floor':
 		return self.floors[index]
 
-	def gen_floor(self, up_stair_location: dict[str, int], level="+1") -> None:
+	def gen_floor(self, up_stair_location: dict[str, int], level: str ="+1") -> None:
 		"""Create the next single floor of the dungeon"""
 
 		if level[0] == "+" and level[1:].isdigit():
@@ -60,9 +67,12 @@ class Dungeon(object):
 class Floor(object):
 	"""Whole floor of the dungeon"""
 
-	def __init__(self, floor: int, upstairs=None) -> None:
+	def __init__(self, floor: int, upstairs: dict[str, int] | None = None) -> None:
 		"""Create a floor and populate it"""
-
+		
+		if floor < 0:
+			return
+		
 		self.stairs = False
 
 		self.floor_num: int = floor
@@ -99,6 +109,9 @@ class Floor(object):
 		"""Index the floor"""
 
 		return self.dun[key]
+
+	def __iter__(self) -> Iterator[list['Room']]:
+		return iter(self.dun)
 
 
 class Room(object):
@@ -194,7 +207,7 @@ class Room(object):
 class CollectableItem(object):
 	"""Class for any item that can be gained by the player."""
 
-	image: ImageTk.PhotoImage
+	image: ClassVar[ImageTk.PhotoImage]
 
 	def __init__(
 			self,
@@ -270,7 +283,7 @@ class Player(object):
 
 		self.race: str = race
 		self.loc: list[int] = [(DUN_W - 1) // 2, (DUN_H - 1) // 2]
-		self.floor = None
+		self.floor: Floor = Floor(-1)
 		self.max_health: int = DEFAULT_MAX_HEALTH
 		self.health: int = self.max_health
 		self.damage: int = DEFAULT_DAMAGE
@@ -278,14 +291,14 @@ class Player(object):
 		self.experiance: int = 0
 		self.lvl: int = 1
 		self.inven: Inventory = inven
-		self.equipment: dict = {}
+		self.equipment: dict[str, list[Space, int, 'EquipableItem']] = {}
 		self.status = None
 
-	def occupied_equipment(self):
+	def occupied_equipment(self) -> list[str]:
 		"""Figure out what equipment spaces are used"""
 
-		vals = tuple(self.equipment.values())
-		total = []
+		vals: tuple[list[Space, int, 'EquipableItem']] = tuple(self.equipment.values())
+		total: list[str] = []
 		for i in vals:
 			total += [i[0][0]] * i[1]
 		return total
@@ -294,7 +307,8 @@ class Player(object):
 class Encounter(object):
 	"""A base class for enemies and non combat things"""
 
-	image: ImageTk.PhotoImage
+	image: ClassVar[ImageTk.PhotoImage]
+	icon: ClassVar[ImageTk.PhotoImage]
 
 	def __init__(self, filename: str = "ImageNotFound.png") -> None:
 		"""Create the image variable
@@ -309,7 +323,7 @@ class Encounter(object):
 		self.name: str = "Encounter"
 
 		if not hasattr(type(self), "image"):
-			image = Image.open(file_path(filename))
+			image: ImageTk.PhotoImage = Image.open(file_path(filename))
 			image = image.resize((180, 180))
 			type(self).image = ImageTk.PhotoImage(image)
 
@@ -326,6 +340,9 @@ class Encounter(object):
 
 		gui.screen = "encounter"
 		self.show_ico(place=disp)
+
+	def interact(self) -> None:
+		pass
 
 
 class Empty(Encounter):
@@ -345,14 +362,14 @@ class Empty(Encounter):
 class Stairs(Encounter):
 	"""Stairs to another Floor"""
 
-	image: ImageTk.PhotoImage
-	icon: ImageTk.PhotoImage
+	image: ClassVar[ImageTk.PhotoImage]
+	icon: ClassVar[ImageTk.PhotoImage]
 
 	def __init__(
 			self,
 			location: dict[str, int],
 			dist: int = +1,
-			to=None) -> None:
+			to: dict[str, int] | None = None) -> None:
 
 		if not hasattr(type(self), "image"):
 			image = Image.open(file_path("dungeon_stairs.png"))
@@ -360,7 +377,7 @@ class Stairs(Encounter):
 			type(self).image = ImageTk.PhotoImage(image)
 
 			# icon of stairs
-			icon: ImageTk.PhotoImage = Image.open(file_path("stairs_icon.png"))
+			icon = Image.open(file_path("stairs_icon.png"))
 			icon = ImageOps.mirror(
 				icon.resize((SMW // 2, SMH // 2))
 			)
@@ -369,7 +386,7 @@ class Stairs(Encounter):
 		self.location: dict[str, int] = location
 		self.dist: int = dist
 		if to:
-			self.to = to
+			self.to: dict[str, int] = to
 			self.dist = self.to["floor"] - self.location["floor"]
 		else:
 			self.to = {
@@ -589,7 +606,7 @@ class EquipableItem(UsableItem):
 		# *args and **kwargs allow other agruments to be passed
 		super().__init__(*args, **kwargs)
 		self.name: str = "undefined_equipable_item"
-		self.space: tuple = (None, float("inf"))
+		self.space: tuple = ("", -1)
 		# would prefer for this to be a temp variable
 		self.equiped: bool = False
 
@@ -650,7 +667,7 @@ class BuyableItem(CollectableItem):
 	def __str__(self) -> str:
 		return self.name
 
-	def effect(self):
+	def effect(self) -> None:
 		"""The passive effect the item has just my having it"""
 
 		pass
@@ -762,10 +779,10 @@ class Armor(BuyableItem, EquipableItem):
 			gui.update_stats(p.damage, p.defence)
 
 # needed to create different tiers of armor dynamically
-def armor_factory(tier: int):
+def armor_factory(tier: int) -> Callable[[], BuyableItem]:
 	"""Create armor class with the desired tier"""
 
-	def armor_proxy() -> CollectableItem:
+	def armor_proxy() -> BuyableItem:
 		"""Return an instance of armor with the correct tier"""
 
 		return Armor(tier)
@@ -832,7 +849,7 @@ def restart() -> None:
 '''
 
 
-def get_loot(loot: dict) -> None:
+def get_loot(loot: dict[str, CollectableItem]) -> None:
 	"""Add all loot items to inventroy"""
 
 	for key, item in loot.items():
@@ -862,7 +879,9 @@ if __name__ == "__main__":
 
 	inventory = Inventory()
 
-	buyable: tuple[Callable[[], BuyableItem]] = (Sword, HealthPot, armor_factory(1))
+	buyable: tuple[Callable[[], BuyableItem] | type[BuyableItem]] = (
+		Sword, HealthPot, armor_factory(1)
+	)
 
 	p = Player(inventory)
 	gui = GUI(

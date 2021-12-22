@@ -2,7 +2,7 @@
 
 # GUI.py
 
-from __future__ import annotations
+#from __future__ import annotations
 import tkinter as tk
 from tkinter import font
 from random import randint
@@ -15,8 +15,10 @@ from errors import *
 from config import *
 
 if TYPE_CHECKING:
+	from PIL import ImageTk
+	
 	from inven import Inventory
-	from Crawler import BuyableItem, Room
+	from Crawler import CollectableItem, BuyableItem, Room
 
 	class OptionalSequenceOfInts(Protocol):
 		def __call__(self, xy: Sequence[int] | None = None) -> Room: ...
@@ -81,13 +83,13 @@ class Navigation(Screen):
 			p_max_health: int,
 			p_loc: list[int],
 			inv_mode: Callable[[], None],
-			cur_room: OptionalSequenceOfInts,
+			cur_room: 'OptionalSequenceOfInts',
 			write_out: Callable[[str], None]) -> None:
 
 		super().__init__(master)
 
 		self.player_loc: list[int] = p_loc
-		self.cur_room: OptionalSequenceOfInts = cur_room
+		self.cur_room: 'OptionalSequenceOfInts' = cur_room
 		self.write_out = write_out
 
 		# movement & inventory button creation
@@ -202,14 +204,14 @@ class Navigation(Screen):
 		self.frame.bind("<Button 1>", self.mouse_click)
 
 	@staticmethod
-	def mouse_click(event) -> None:
+	def mouse_click(event: tk.Event) -> None:
 		"""The mouse is clicked in the master window. Used to unfocus from the
 		entry widget"""
 
 		event.widget.focus()
 
 	# factory necessary for tkinter key binding reasons
-	def movement_factory(_self, direction: str) -> TkEventOrNone:
+	def movement_factory(_self, direction: str) -> 'TkEventOrNone':
 		"""Factory for moving the character functions"""
 
 		def move_func(self, event: tk.Event | None = None) -> None:
@@ -259,7 +261,7 @@ class Navigation(Screen):
 		self.mark_visited(*self.player_loc)
 		self.cur_room().enter()
 
-	def room_info(self, event) -> None:
+	def room_info(self, event: tk.Event) -> None:
 		"""Give information about rooms by clicking on them"""
 
 		x, y = event.x, event.y
@@ -306,7 +308,7 @@ class Navigation(Screen):
 			tags=f"enemy{x},{y}"
 		)
 
-	def draw_encounter(self, icon, x: int, y: int) -> None:
+	def draw_encounter(self, icon: ImageTk.PhotoImage, x: int, y: int) -> None:
 		"""Draw a known non-hostile encounter on the map"""
 
 		self.map.create_image(
@@ -320,7 +322,7 @@ class Navigation(Screen):
 class GameOver(Screen):
 	"""Screen for after the player loses"""
 
-	def __init__(self, master) -> None:
+	def __init__(self, master: tk.Tk) -> None:
 		super().__init__(master)
 
 		self.game_over: tk.Canvas = tk.Canvas(
@@ -356,19 +358,19 @@ class InventoryScreen(Screen):
 
 	def __init__(
 		self,
-		master,
-		inven,
-		buyable: dict,
-		stock,
-		leave_inv,
-		write_out) -> None:
+		master: tk.Tk,
+		inven: 'Inventory',
+		buyable: dict[Callable[[], BuyableItem] | type[BuyableItem]],
+		stock: tk.Menu,
+		leave_inv: Callable[[], None],
+		write_out: Callable[[str], None]) -> None:
 
 		super().__init__(master)
 
-		self.inven = inven
-		self.buyable_items = buyable
-		self.stock = stock
-		self.write_out = write_out
+		self.inven: Inventory = inven
+		self.buyable_items: dict[Callable[[], BuyableItem] | type[BuyableItem]] = buyable
+		self.stock: tk.Menu = stock
+		self.write_out: Callable[[str], None] = write_out
 
 		for i in self.buyable_items:
 			# actual things you can buy
@@ -466,13 +468,13 @@ class InventoryScreen(Screen):
 		except AttributeError:
 			pass
 
-	def add_to_inv(self, item) -> None:
+	def add_to_inv(self, item: 'CollectableItem') -> None:
 		"""Add an item to the inventory data structure and draw it on the
 		inventory screen"""
 
 		index: int = self.inven.add(item.name, item)
 		total: int = self.inven[index].amount
-		new_text = str(total) if total > 1 else ""
+		new_text: str = str(total) if total > 1 else ""
 
 		if item.name not in self.inv_images:
 			x: int = index % INV_WIDTH
@@ -559,7 +561,12 @@ class InventoryScreen(Screen):
 class Battle(Screen):
 	"""Screen for fighting enemies"""
 
-	def __init__(self, master, cur_room, flee) -> None:
+	def __init__(
+		self,
+		master: tk.Tk,
+		cur_room: 'OptionalSequenceOfInts',
+		flee) -> None:
+
 		super().__init__(master)
 
 		#  fight screen
@@ -657,7 +664,11 @@ class Battle(Screen):
 class EncounterScreen(Screen):
 	"""Encounter screen of non hostile nature"""
 
-	def __init__(self, master, cur_room, leave) -> None:
+	def __init__(
+		self,
+		master: tk.Tk,
+		cur_room: 'OptionalSequenceOfInts',
+		leave) -> None:
 		super().__init__(master)
 
 		self.enc_scr: tk.Canvas = tk.Canvas(self.frame, width=W + 100, height=H)
@@ -693,20 +704,22 @@ class GUI(object):
 
 	def __init__(
 			self,
-			inven: Inventory,
-			buyable: tuple[Callable[[], BuyableItem]],
+			inven: 'Inventory',
+			buyable: tuple[Callable[[], BuyableItem] | type[BuyableItem]],
 			p_damage: int,
 			p_defence: int,
 			p_max_health: int,
 			player_loc: list[int],
-			cur_room: OptionalSequenceOfInts) -> None:
+			cur_room: 'OptionalSequenceOfInts') -> None:
 
-		self.screen: str = "navigation"
+		self.screen = "navigation"
 
 		self.master = tk.Tk()
 		self.master.geometry("%dx%d+%d+%d" % (W + 300, H + 70, 0, 0))
 
 		self.player_loc: list[int] = player_loc
+		
+		self.cur_room: 'OptionalSequenceOfInts' = cur_room
 
 		# window name
 		self.master.title(string="The Dungeon")
@@ -719,7 +732,9 @@ class GUI(object):
 
 		self.shop.add_cascade(menu=self.stock, label="Shop")
 
-		buyable_items: dict[str, BuyableItem] = {item().name: item for item in buyable}
+		buyable_items: dict[
+			Callable[[], BuyableItem] | type[BuyableItem]
+		] = {item().name: item for item in buyable}
 
 		# add menu to screen
 		self.master.config(menu=self.shop)
@@ -729,7 +744,7 @@ class GUI(object):
 			p_max_health,
 			self.player_loc,
 			self.inventory_mode,
-			cur_room,
+			self.cur_room,
 			self.write_out
 		)
 
@@ -748,7 +763,7 @@ class GUI(object):
 
 		self.bat = Battle(
 			self.master,
-			cur_room,
+			self.cur_room,
 			self.flee
 		)
 
@@ -877,11 +892,6 @@ class GUI(object):
 		self.screen = "game over"
 		self.clear_screen()
 		self.gmo.show()
-
-	def cur_room(self):
-		"""Return the Room object that they player is currently in"""
-
-		return self.dungeon.current_floor[self.player_loc[0]][self.player_loc[1]]
 
 	def flee(self) -> None:
 		"""Leave a fight without winning or losing"""

@@ -1,6 +1,5 @@
 """Module for the inventory class """
 
-from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
@@ -16,13 +15,13 @@ __all__ = ["Inventory"]
 class InventoryIterator(object):
 	"""Iterator for the inventory class"""
 
-	def __init__(self, d_iter: Iterator[CollectableItem]) -> None:
+	def __init__(self, d_iter: Iterator) -> None:
 		self.d = d_iter
 
-	def __iter__(self) -> Iterator:
+	def __iter__(self) -> Iterator[str]:
 		return self
 
-	def __next__(self):
+	def __next__(self) -> str:
 		return next(self.d)[0]
 
 
@@ -33,14 +32,14 @@ class Inventory(object):
 
 		# every item is stored under its name as: [item, index] in data
 		# and under index as: item in flat
-		self.data: dict[str, list[CollectableItem, int]] = {}
-		self.flat: dict[int, CollectableItem] = {}
+		self.data: dict[str, list['CollectableItem', int]] = {}
+		self.flat: dict[int, 'CollectableItem'] = {}
 		self.pages: int = 1
 
 	def __getattr__(self, attr: str):
 		return getattr(self.data, attr)
 
-	def __getitem__(self, key: str | int) -> CollectableItem:
+	def __getitem__(self, key: str | int) -> 'CollectableItem':
 		if isinstance(key, str):
 			return self.data[key][0]
 		elif isinstance(key, int):
@@ -48,7 +47,7 @@ class Inventory(object):
 
 		raise InvalidInventoryKey(f"type: {type(key)}")
 
-	def __setitem__(self, key: str | int, item: CollectableItem) -> None:
+	def __setitem__(self, key: str | int, item: 'CollectableItem') -> None:
 		if isinstance(key, str):
 			if key in self.data:
 				num = self.data[key][1]
