@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 	from PIL import ImageTk
 	
 	from inven import Inventory
-	from Crawler import CollectableItem, BuyableItem, Room
+	from Crawler import CollectableItem, BuyableItem, Room, Dungeon
 
 	class OptionalSequenceOfInts(Protocol):
 		def __call__(self, xy: Sequence[int] | None = None) -> Room: ...
@@ -214,7 +214,7 @@ class Navigation(Screen):
 	def movement_factory(_self, direction: str) -> 'TkEventOrNone':
 		"""Factory for moving the character functions"""
 
-		def move_func(self, event: tk.Event | None = None) -> None:
+		def move_func(self: Navigation, event: tk.Event | None = None) -> None:
 			"""Move in a direction"""
 
 			self.p_move(direction)
@@ -360,7 +360,7 @@ class InventoryScreen(Screen):
 		self,
 		master: tk.Tk,
 		inven: 'Inventory',
-		buyable: dict[Callable[[], BuyableItem] | type[BuyableItem]],
+		buyable: dict[str, Callable[[], 'BuyableItem'] | type['BuyableItem']],
 		stock: tk.Menu,
 		leave_inv: Callable[[], None],
 		write_out: Callable[[str], None]) -> None:
@@ -368,7 +368,9 @@ class InventoryScreen(Screen):
 		super().__init__(master)
 
 		self.inven: Inventory = inven
-		self.buyable_items: dict[Callable[[], BuyableItem] | type[BuyableItem]] = buyable
+		self.buyable_items: dict[
+			str,
+			Callable[[], 'BuyableItem'] | type['BuyableItem']] = buyable
 		self.stock: tk.Menu = stock
 		self.write_out: Callable[[str], None] = write_out
 
@@ -446,13 +448,13 @@ class InventoryScreen(Screen):
 			tags=slots[0]
 		)
 		
-	def equip_click(self, event) -> None:
+	def equip_click(self, event: tk.Event) -> None:
 		""" """
 		
 		x: int = event.x * 3 // W
 		y: int = event.y * 4 // H
 
-	def inv_click(self, event) -> None:
+	def inv_click(self, event: tk.Event) -> None:
 		"""Use an item when you click on it in the inventory"""
 
 		x: int = event.x * INV_WIDTH // W
@@ -510,11 +512,11 @@ class InventoryScreen(Screen):
 			new_text = str(total) if total > 1 or item_name == "gold" else ""
 			self.inv_scr.itemconfig(self.inv_images[item_name][1], text=new_text)
 
-	def buy_item_fact(self, item_name: str, amount: int = 1, *args):
+	def buy_item_fact(self, item_name: str, amount: int = 1, *args) -> Callable[[], None]:
 		"""Factory for buying things in the shop"""
 
 		# Can not take parameters because tkinter does not support that
-		def buy_specific_item():
+		def buy_specific_item() -> None:
 			"""Function to buy an item from the shop."""
 
 			for i in range(amount):
@@ -565,7 +567,7 @@ class Battle(Screen):
 		self,
 		master: tk.Tk,
 		cur_room: 'OptionalSequenceOfInts',
-		flee) -> None:
+		flee: Callable[[], None]) -> None:
 
 		super().__init__(master)
 
@@ -668,7 +670,7 @@ class EncounterScreen(Screen):
 		self,
 		master: tk.Tk,
 		cur_room: 'OptionalSequenceOfInts',
-		leave) -> None:
+		leave: Callable[[], None]) -> None:
 		super().__init__(master)
 
 		self.enc_scr: tk.Canvas = tk.Canvas(self.frame, width=W + 100, height=H)
@@ -705,7 +707,7 @@ class GUI(object):
 	def __init__(
 			self,
 			inven: 'Inventory',
-			buyable: tuple[Callable[[], BuyableItem] | type[BuyableItem]],
+			buyable: tuple[Callable[[], 'BuyableItem'] | type['BuyableItem'], ...],
 			p_damage: int,
 			p_defence: int,
 			p_max_health: int,
@@ -732,8 +734,8 @@ class GUI(object):
 
 		self.shop.add_cascade(menu=self.stock, label="Shop")
 
-		buyable_items: dict[
-			Callable[[], BuyableItem] | type[BuyableItem]
+		buyable_items: dict[str,
+			Callable[[], 'BuyableItem'] | type['BuyableItem']
 		] = {item().name: item for item in buyable}
 
 		# add menu to screen
@@ -828,10 +830,10 @@ class GUI(object):
 
 		self.inv.show()
 
-	def dungeon_config(self, dungeon) -> None:
+	def dungeon_config(self, dungeon: 'Dungeon') -> None:
 		"""Configure settings that require that the dungeon object exist"""
 
-		self.dungeon = dungeon
+		self.dungeon: 'Dungeon' = dungeon
 
 	def leave_inv(self) -> None:
 		"""Switch from the inventory screen to the previous screen"""

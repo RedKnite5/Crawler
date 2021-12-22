@@ -30,6 +30,7 @@ from config import *
 if TYPE_CHECKING:
 	Space = tuple[str, int]
 
+
 class Dungeon(object):
 	"""Contains the Rooms in a structured way"""
 
@@ -231,33 +232,33 @@ class CollectableItem(object):
 
 	# math ops are here to allow manipulation of the
 	# amounts without too much extra work
-	def __add__(self, other) -> 'CollectableItem':
+	def __add__(self, other: 'CollectableItem | int') -> 'CollectableItem':
 		if isinstance(other, type(self)):
 			return type(self)(self.amount + other.amount)
 		else:
 			return type(self)(self.amount + other)
 
-	def __iadd__(self, other) -> 'CollectableItem':
+	def __iadd__(self, other: 'CollectableItem | int') -> 'CollectableItem':
 		if isinstance(other, type(self)):
 			self.amount += other.amount
 		else:
 			self.amount += other
 		return self
 
-	def __sub__(self, other) -> 'CollectableItem':
+	def __sub__(self, other: 'CollectableItem | int') -> 'CollectableItem':
 		if isinstance(other, type(self)):
 			return type(self)(self.amount - other.amount)
 		else:
 			return type(self)(self.amount - other)
 
-	def __isub__(self, other) -> 'CollectableItem':
+	def __isub__(self, other: 'CollectableItem | int') -> 'CollectableItem':
 		if isinstance(other, type(self)):
 			self.amount -= other.amount
 		else:
 			self.amount -= other
 		return self
 
-	def __lt__(self, other) -> bool:
+	def __lt__(self, other: int) -> bool:
 		return self.amount < other
 
 	def __bool__(self) -> bool:
@@ -438,7 +439,7 @@ class Enemy(Encounter):
 	"""General enemy class. Includes set up for fights, attacking, being
 	attacked, and returning loot"""
 
-	def __init__(self, filename="ImageNotFound.png") -> None:
+	def __init__(self, filename: str = "ImageNotFound.png") -> None:
 
 		super().__init__(filename)
 		self.name: str = "enemy"
@@ -879,7 +880,7 @@ if __name__ == "__main__":
 
 	inventory = Inventory()
 
-	buyable: tuple[Callable[[], BuyableItem] | type[BuyableItem]] = (
+	buyable: tuple[Callable[[], BuyableItem] | type[BuyableItem], ...] = (
 		Sword, HealthPot, armor_factory(1)
 	)
 

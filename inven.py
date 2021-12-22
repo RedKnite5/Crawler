@@ -1,7 +1,8 @@
 """Module for the inventory class """
 
+from dataclasses import dataclass
 from collections.abc import Iterator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload, Literal, Callable
 
 from errors import *
 from config import *
@@ -12,11 +13,41 @@ if TYPE_CHECKING:
 __all__ = ["Inventory"]
 
 
+@dataclass
+class ItemAndIndex(object):
+	item: 'CollectableItem'
+	index: int
+	
+	@overload
+	def __getitem__(self, index: Literal[0]) -> 'CollectableItem': ...
+
+	@overload
+	def __getitem__(self, index: Literal[1]) -> int: ...
+	
+	def __getitem__(self, index: Literal[0, 1]) -> 'CollectableItem | int':
+		if index == 0:
+			return self.item
+		elif index == 1:
+			return self.index
+
+	@overload
+	def __setitem__(self, index: Literal[0], value: 'CollectableItem') -> None: ...
+	
+	@overload
+	def __setitem__(self, index: Literal[1], value: int) -> None: ...
+	
+	def __setitem__(self, index: Literal[0, 1], value: 'CollectableItem | int') -> None:
+		if index == 0:
+			self.item = value
+		elif index == 1:
+			self.index = value
+
+	
 class InventoryIterator(object):
 	"""Iterator for the inventory class"""
 
-	def __init__(self, d_iter: Iterator) -> None:
-		self.d = d_iter
+	def __init__(self, d_iter: Iterator[str]) -> None:
+		self.d: Iterator[str] = d_iter
 
 	def __iter__(self) -> Iterator[str]:
 		return self
@@ -32,11 +63,11 @@ class Inventory(object):
 
 		# every item is stored under its name as: [item, index] in data
 		# and under index as: item in flat
-		self.data: dict[str, list['CollectableItem', int]] = {}
+		self.data: dict[str, ItemAndIndex] = {}
 		self.flat: dict[int, 'CollectableItem'] = {}
 		self.pages: int = 1
 
-	def __getattr__(self, attr: str):
+	def __getattr__(self, attr: str) -> Callable:
 		return getattr(self.data, attr)
 
 	def __getitem__(self, key: str | int) -> 'CollectableItem':
@@ -57,7 +88,7 @@ class Inventory(object):
 				self.insert(key, item)
 		elif isinstance(key, int):
 			self.flat[key] = item
-			self.data[item.name] = [item, key]
+			self.data[item.name] = ItemAndIndex(item, key)
 		else:
 			raise InvalidInventoryKey(f"type: {type(key)}")
 
@@ -87,7 +118,7 @@ class Inventory(object):
 	def __iter__(self) -> InventoryIterator:
 		return InventoryIterator(iter(self.data))
 
-	def add(self, key: str, item) -> int:
+	def add(self, key: str, item: 'CollectableItem') -> int:
 		"""Add an item to both dictionaries"""
 
 		# it is the same object in both dictionaries
@@ -97,7 +128,7 @@ class Inventory(object):
 		else:
 			return self.insert(key, item)
 
-	def insert(self, key: str, item) -> int:
+	def insert(self, key: str, item: 'CollectableItem') -> int:
 		"""Insert an new item to both dictionaries"""
 
 		index: int = 0
@@ -105,7 +136,7 @@ class Inventory(object):
 			if index not in self.flat:
 				self.flat[index] = item
 				break
-		self.data[key] = [item, index]
+		self.data[key] = ItemAndIndex(item, index)
 		if index > INV_WIDTH * INV_HEIGHT * self.pages:
 			self.pages += 1
 		return index
