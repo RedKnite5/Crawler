@@ -660,7 +660,8 @@ class EquipableItem(UsableItem):
 			# would prefer for this to be a temporary variable
 			self.unequiped = True
 			p.inven[self.name] += 1
-			p.equipment[self.name][1] -= 1
+			t = p.equipment[self.name]
+			p.equipment[self.name] = (t[0], t[1] - 1, t[2])
 			if p.equipment[self.name][1] <= 0:
 				p.equipment.pop(self.name)
 			gui.write_out(f"You unequip the {self.name}")
@@ -894,7 +895,7 @@ if __name__ == "__main__":
 
 	monsters_killed = 0
 
-	inventory = Inventory()
+	inventory: Inventory = Inventory()
 
 	buyable: tuple[Callable[[], BuyableItem] | type[BuyableItem], ...] = (
 		Sword, HealthPot, Armor.factory(1)
