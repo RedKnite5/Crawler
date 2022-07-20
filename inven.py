@@ -4,40 +4,47 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, overload, Literal, Callable, cast, Protocol
+from typing import (TYPE_CHECKING, overload, Literal,
+					Callable, cast, Protocol, TypeVar,
+					Generic)
 
 from errors import *
 from config import *
 
-if TYPE_CHECKING:
-	from Crawler import CollectableItem
-
 __all__ = ["Inventory"]
 
-class HasName(Protocol):
+class HasNameProtocol(Protocol):
 	name: str
+	amount: int
+
+	def __iadd__(self, other: HasName | int) -> HasName: ...
+	def __sub__(self, other: HasName | int) -> HasName: ...
+	def __isub__(self, other: HasName | int) -> HasName: ...
+
+HasName = TypeVar("HasName", bound=HasNameProtocol)
+
 
 
 @dataclass
-class ItemAndIndex(object):
-	item: CollectableItem
+class ItemAndIndex(Generic[HasName]):
+	item: HasName
 	index: int
 	
 	@overload
-	def __getitem__(self, index: Literal[0]) -> CollectableItem: ...
+	def __getitem__(self, index: Literal[0]) -> HasName: ...
 
 	@overload
 	def __getitem__(self, index: Literal[1]) -> int: ...
 	
-	def __getitem__(self, index: Literal[0, 1]) -> CollectableItem | int:
+	def __getitem__(self, index: Literal[0, 1]) -> HasName | int:
 		if index == 0:
 			return self.item
 		elif index == 1:
 			return self.index
 
-	def __setitem__(self, index: Literal[0, 1], value: CollectableItem | int) -> None:
+	def __setitem__(self, index: Literal[0, 1], value: HasName | int) -> None:
 		if index == 0:
-			value = cast('CollectableItem', value)
+			value = cast(HasName, value)
 			self.item = value
 		elif index == 1:
 			value = cast(int, value)
@@ -57,7 +64,7 @@ class InventoryIterator(object):
 		return next(self.d)[0]
 
 
-class Inventory(object):
+class Inventory(Generic[HasName]):
 	"""Class to store all the items the player has"""
 
 	def __init__(self) -> None:
@@ -65,13 +72,13 @@ class Inventory(object):
 		# every item is stored under its name as: [item, index] in data
 		# and under index as: item in flat
 		self.data: dict[str, ItemAndIndex] = {}
-		self.flat: dict[int, 'CollectableItem'] = {}
+		self.flat: dict[int, HasName] = {}
 		self.pages: int = 1
 
 	def __getattr__(self, attr: str) -> Callable:
 		return getattr(self.data, attr)
 
-	def __getitem__(self, key: str | int) -> 'CollectableItem':
+	def __getitem__(self, key: str | int) -> HasName:
 		if isinstance(key, str):
 			return self.data[key][0]
 		elif isinstance(key, int):
@@ -79,7 +86,7 @@ class Inventory(object):
 
 		raise InvalidInventoryKey(f"type: {type(key)}")
 
-	def __setitem__(self, key: str | int, item: 'CollectableItem') -> None:
+	def __setitem__(self, key: str | int, item: HasName) -> None:
 		if isinstance(key, str):
 			if key in self.data:
 				num = self.data[key][1]
@@ -119,7 +126,7 @@ class Inventory(object):
 	def __iter__(self) -> InventoryIterator:
 		return InventoryIterator(iter(self.data))
 
-	def add(self, key: str, item: 'CollectableItem') -> int:
+	def add(self, key: str, item: HasName) -> int:
 		"""Add an item to both dictionaries"""
 
 		# it is the same object in both dictionaries
@@ -129,7 +136,7 @@ class Inventory(object):
 		else:
 			return self.insert(key, item)
 
-	def insert(self, key: str, item: 'CollectableItem') -> int:
+	def insert(self, key: str, item: HasName) -> int:
 		"""Insert an new item to both dictionaries"""
 
 		index: int = 0
