@@ -303,13 +303,13 @@ class Player(object):
 		self.experiance: int = 0
 		self.lvl: int = 1
 		self.inven: Inventory = inven
-		self.equipment: dict[str, list[Space, int, 'EquipableItem']] = {}
+		self.equipment: dict[str, tuple[Space, int, 'EquipableItem']] = {}
 		self.status = None
 
 	def occupied_equipment(self) -> list[str]:
 		"""Figure out what equipment spaces are used"""
 
-		vals: tuple[list[Space, int, 'EquipableItem']] = tuple(self.equipment.values())
+		vals: tuple[tuple[Space, int, 'EquipableItem'], ...] = tuple(self.equipment.values())
 		total: list[str] = []
 		for i in vals:
 			total += [i[0][0]] * i[1]
@@ -618,7 +618,7 @@ class EquipableItem(UsableItem):
 		# *args and **kwargs allow other agruments to be passed
 		super().__init__(*args, **kwargs)
 		self.name: str = "undefined_equipable_item"
-		self.space: tuple = ("", -1)
+		self.space: Space = ("", -1)
 		# would prefer for this to be a temp variable
 		self.equiped: bool = False
 
@@ -647,9 +647,10 @@ class EquipableItem(UsableItem):
 			gui.write_out(f"You equip the {self.name}")
 
 			if self.space[0] not in p.occupied_equipment():
-				p.equipment[self.name] = [self.space, 1, self]
+				p.equipment[self.name] = (self.space, 1, self)
 			else:
-				p.equipment[self.name][1] += 1
+				t = p.equipment[self.name]
+				p.equipment[self.name] = (t[0], t[1] + 1, t[2])
 			return True
 
 	def unequip(self) -> None:
