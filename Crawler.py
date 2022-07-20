@@ -10,6 +10,7 @@ from typing import (TYPE_CHECKING,
 					Callable,
 					Sequence,
 					ClassVar,
+					TypeVar,
 					Iterator,
 					Type)
 
@@ -40,9 +41,9 @@ class Dungeon(object):
 		self.floors: list['Floor'] = [Floor(0)]
 		self.floor_num: int = 0
 
-	def __getattr__(self, attr: str) -> 'Floor':
-		if attr == "current_floor":
-			return self.floors[self.floor_num]
+	@property
+	def current_floor(self) -> Floor:
+		return self.floors[self.floor_num]
 
 	def __getitem__(self, index: int) -> 'Floor':
 		return self.floors[index]
@@ -237,27 +238,35 @@ class CollectableItem(object):
 	def __add__(self, other: 'CollectableItem | int') -> 'CollectableItem':
 		if isinstance(other, type(self)):
 			return type(self)(self.amount + other.amount)
-		else:
+		elif isinstance(other, int):
 			return type(self)(self.amount + other)
+		else:
+			raise TypeError
 
 	def __iadd__(self, other: 'CollectableItem | int') -> 'CollectableItem':
 		if isinstance(other, type(self)):
 			self.amount += other.amount
-		else:
+		elif isinstance(other, int):
 			self.amount += other
+		else:
+			raise TypeError
 		return self
 
 	def __sub__(self, other: 'CollectableItem | int') -> 'CollectableItem':
 		if isinstance(other, type(self)):
 			return type(self)(self.amount - other.amount)
-		else:
+		elif isinstance(other, int):
 			return type(self)(self.amount - other)
+		else:
+			raise TypeError
 
 	def __isub__(self, other: 'CollectableItem | int') -> 'CollectableItem':
 		if isinstance(other, type(self)):
 			self.amount -= other.amount
-		else:
+		elif isinstance(other, int):
 			self.amount -= other
+		else:
+			raise TypeError
 		return self
 
 	def __lt__(self, other: int) -> bool:
@@ -664,8 +673,7 @@ class BuyableItem(CollectableItem):
 	def __init__(self, *args, **kwargs) -> None:
 		super().__init__(*args, **kwargs)
 		self.cost: int = 0
-		self.tiered: bool = False
-		self.name: str = "undefined_buyable_item"
+		self.name: str = "buyable_item"
 
 	def __str__(self) -> str:
 		return self.name
@@ -675,6 +683,27 @@ class BuyableItem(CollectableItem):
 
 		pass
 
+
+T_Tiered = TypeVar("T_Tiered", bound="TieredItem")
+class TieredItem(BuyableItem):
+	def __init__(self, *args, **kwargs) -> None:
+		super().__init__(*args, **kwargs)
+		self.name: str = "tiered_item"
+		self.tier: int = 0
+
+	# needed to create different tiers dynamically
+	@classmethod
+	def factory(cls: Type[T_Tiered], tier: int) -> Callable[[], T_Tiered]:
+		"""Create function that returns class with the desired tier"""
+
+		def proxy() -> T_Tiered:
+			"""Return an instance with the correct tier"""
+
+			return cls(tier)
+
+		proxy.factory = cls.factory
+
+		return proxy  # return func that returns the class
 
 class HealthPot(UsableItem, BuyableItem):
 	"""An item that heals the player"""
@@ -746,11 +775,8 @@ class Sword(BuyableItem, EquipableItem):
 			gui.update_stats(p.damage, p.defence)
 
 
-class Armor(BuyableItem, EquipableItem):
+class Armor(TieredItem, EquipableItem):
 	"""Armor class that gives defence"""
-
-	# here so that a higher tier class can be generated from this one
-	#factory = staticmethod(armor_factory)
 
 	# what if kwargs contains "tier=1.2"? I don't know what to
 	# do about that
@@ -780,20 +806,6 @@ class Armor(BuyableItem, EquipableItem):
 			p.defence -= 5 + 5 * self.tier
 			self.unequiped = False  # reset this variable
 			gui.update_stats(p.damage, p.defence)
-
-	# needed to create different tiers of armor dynamically
-	@classmethod
-	def armor_factory(cls, tier: int) -> Callable[[], BuyableItem]:
-		"""Create armor class with the desired tier"""
-
-		def armor_proxy() -> BuyableItem:
-			"""Return an instance of armor with the correct tier"""
-
-			return cls(tier)
-		
-		armor_proxy.factory = cls.armor_factory
-
-		return armor_proxy  # return the class from the factory
 
 
 equipment = {
@@ -884,7 +896,7 @@ if __name__ == "__main__":
 	inventory = Inventory()
 
 	buyable: tuple[Callable[[], BuyableItem] | type[BuyableItem], ...] = (
-		Sword, HealthPot, Armor.armor_factory(1)
+		Sword, HealthPot, Armor.factory(1)
 	)
 
 	p = Player(inventory)

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 	from PIL import ImageTk
 	
 	from inven import Inventory
-	from Crawler import CollectableItem, UsableItem, BuyableItem, Room, Dungeon
+	from Crawler import CollectableItem, UsableItem, BuyableItem, TieredItem, Room, Dungeon
 
 	class OptionalSequenceOfInts(Protocol):
 		def __call__(self, xy: Sequence[int] | None = None) -> Room: ...
@@ -34,6 +34,11 @@ def is_usable(item: CollectableItem) -> TypeGuard[UsableItem]:
 	if hasattr(item, "use"):
 		if callable(getattr(item, "use", None)):
 			return True
+	return False
+
+def is_tiered(item: BuyableItem) -> TypeGuard[TieredItem]:
+	if hasattr(item, "tier"):
+		return True
 	return False
 
 
@@ -540,7 +545,7 @@ class InventoryScreen(Screen):
 
 					self.sub_from_inv("gold", item.cost)
 
-					if hasattr(item, "tier"):
+					if is_tiered(item):
 						# replace item in list of buyable items
 						
 						new_item_cls = self.buyable_items[item_name].factory(item.tier + 1)
