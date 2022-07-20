@@ -1,8 +1,10 @@
 """Module for the inventory class """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, overload, Literal, Callable
+from typing import TYPE_CHECKING, overload, Literal, Callable, cast, Protocol
 
 from errors import *
 from config import *
@@ -12,34 +14,33 @@ if TYPE_CHECKING:
 
 __all__ = ["Inventory"]
 
+class HasName(Protocol):
+	name: str
+
 
 @dataclass
 class ItemAndIndex(object):
-	item: 'CollectableItem'
+	item: CollectableItem
 	index: int
 	
 	@overload
-	def __getitem__(self, index: Literal[0]) -> 'CollectableItem': ...
+	def __getitem__(self, index: Literal[0]) -> CollectableItem: ...
 
 	@overload
 	def __getitem__(self, index: Literal[1]) -> int: ...
 	
-	def __getitem__(self, index: Literal[0, 1]) -> 'CollectableItem | int':
+	def __getitem__(self, index: Literal[0, 1]) -> CollectableItem | int:
 		if index == 0:
 			return self.item
 		elif index == 1:
 			return self.index
 
-	@overload
-	def __setitem__(self, index: Literal[0], value: 'CollectableItem') -> None: ...
-	
-	@overload
-	def __setitem__(self, index: Literal[1], value: int) -> None: ...
-	
-	def __setitem__(self, index: Literal[0, 1], value: 'CollectableItem | int') -> None:
+	def __setitem__(self, index: Literal[0, 1], value: CollectableItem | int) -> None:
 		if index == 0:
+			value = cast('CollectableItem', value)
 			self.item = value
 		elif index == 1:
+			value = cast(int, value)
 			self.index = value
 
 	

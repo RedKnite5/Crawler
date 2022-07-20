@@ -1,5 +1,7 @@
 """The main Crawler game"""
 
+from __future__ import annotations
+
 import random
 from functools import total_ordering
 from math import atan, pi, exp
@@ -779,18 +781,19 @@ class Armor(BuyableItem, EquipableItem):
 			self.unequiped = False  # reset this variable
 			gui.update_stats(p.damage, p.defence)
 
-# needed to create different tiers of armor dynamically
-def armor_factory(tier: int) -> Callable[[], BuyableItem]:
-	"""Create armor class with the desired tier"""
+	# needed to create different tiers of armor dynamically
+	@classmethod
+	def armor_factory(cls, tier: int) -> Callable[[], BuyableItem]:
+		"""Create armor class with the desired tier"""
 
-	def armor_proxy() -> BuyableItem:
-		"""Return an instance of armor with the correct tier"""
+		def armor_proxy() -> BuyableItem:
+			"""Return an instance of armor with the correct tier"""
 
-		return Armor(tier)
-	
-	armor_proxy.factory = armor_factory
+			return cls(tier)
+		
+		armor_proxy.factory = cls.armor_factory
 
-	return armor_proxy  # return the class from the factory
+		return armor_proxy  # return the class from the factory
 
 
 equipment = {
@@ -881,7 +884,7 @@ if __name__ == "__main__":
 	inventory = Inventory()
 
 	buyable: tuple[Callable[[], BuyableItem] | type[BuyableItem], ...] = (
-		Sword, HealthPot, armor_factory(1)
+		Sword, HealthPot, Armor.armor_factory(1)
 	)
 
 	p = Player(inventory)

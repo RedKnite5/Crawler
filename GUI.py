@@ -2,11 +2,11 @@
 
 # GUI.py
 
-#from __future__ import annotations
+from __future__ import annotations
 import tkinter as tk
 from tkinter import font
 from random import randint
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, TypeGuard
 from collections.abc import Callable, Sequence
 
 from PIL import ImageTk   # type: ignore
@@ -15,10 +15,12 @@ from errors import *
 from config import *
 
 if TYPE_CHECKING:
+	from typing import Protocol
+	
 	from PIL import ImageTk
 	
 	from inven import Inventory
-	from Crawler import CollectableItem, BuyableItem, Room, Dungeon
+	from Crawler import CollectableItem, UsableItem, BuyableItem, Room, Dungeon
 
 	class OptionalSequenceOfInts(Protocol):
 		def __call__(self, xy: Sequence[int] | None = None) -> Room: ...
@@ -27,6 +29,12 @@ if TYPE_CHECKING:
 		def __call__(self, event: tk.Event | None = None) -> None: ...
 
 __all__ = ["GUI"]
+
+def is_usable(item: CollectableItem) -> TypeGuard[UsableItem]:
+	if hasattr(item, "use"):
+		if callable(getattr(item, "use", None)):
+			return True
+	return False
 
 
 class MultiframeWidget(object):
@@ -462,13 +470,12 @@ class InventoryScreen(Screen):
 
 		index: int = y * INV_WIDTH + x
 
-		try:
-			if index in self.inven:
-				success = self.inven[index].use()
+		if index in self.inven:
+			item = self.inven[index]
+			if is_usable(item):
+				success = item.use()
 				if success:
-					self.sub_from_inv(self.inven[index].name, 1)
-		except AttributeError:
-			pass
+					self.sub_from_inv(item.name, 1)
 
 	def add_to_inv(self, item: 'CollectableItem') -> None:
 		"""Add an item to the inventory data structure and draw it on the
