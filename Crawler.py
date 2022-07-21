@@ -28,7 +28,8 @@ from config import *
 
 # ToDo: Unequip stuff
 # ToDo: store equipment differently
-# TODo: tests
+# ToDo: tests
+# ToDo: remove quotes from annotations
 
 if TYPE_CHECKING:
 	Space = tuple[str, int]
@@ -617,7 +618,7 @@ class EquipableItem(UsableItem):
 	def __init__(self, *args, **kwargs) -> None:
 		# *args and **kwargs allow other agruments to be passed
 		super().__init__(*args, **kwargs)
-		self.name: str = "undefined_equipable_item"
+		self.name: str = "equipable_item"
 		self.space: Space = ("", -1)
 		# would prefer for this to be a temp variable
 		self.equiped: bool = False

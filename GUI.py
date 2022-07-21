@@ -20,7 +20,9 @@ if TYPE_CHECKING:
 	from PIL import ImageTk
 	
 	from inven import Inventory
-	from Crawler import CollectableItem, UsableItem, BuyableItem, TieredItem, Room, Dungeon
+	from Crawler import (CollectableItem, UsableItem,
+						EquipableItem, BuyableItem,
+						TieredItem, Room, Dungeon)
 
 	class OptionalSequenceOfInts(Protocol):
 		def __call__(self, xy: Sequence[int] | None = None) -> Room: ...
@@ -33,6 +35,12 @@ __all__ = ["GUI"]
 def is_usable(item: CollectableItem) -> TypeGuard[UsableItem]:
 	if hasattr(item, "use"):
 		if callable(getattr(item, "use", None)):
+			return True
+	return False
+
+def is_equipable(item: CollectableItem) -> TypeGuard[EquipableItem]:
+	if hasattr(item, "equip"):
+		if callable(getattr(item, "equip", None)):
 			return True
 	return False
 
@@ -441,24 +449,24 @@ class InventoryScreen(Screen):
 				IBW * 2 - 2,
 				IBH * (i + 1) - 2,
 				fill="grey",
-				tags=slots[0]
+				tags=slots[i]
 			)
-			
+
 		self.equip_scr.create_rectangle(
 			2,
 			int(IBH * 1.5) + 2,
 			IBW - 2,
-			int(IBH * 2.5) + 2,
+			int(IBH * 2.5) - 2,
 			fill="grey",
-			tags=slots[0]
+			tags="left hand"
 		)
 		self.equip_scr.create_rectangle(
 			IBW * 2 + 2,
 			int(IBH * 1.5) + 2,
 			IBW * 3 - 2,
-			int(IBH * 2.5) + 2,
+			int(IBH * 2.5) - 2,
 			fill="grey",
-			tags=slots[0]
+			tags="right hand"
 		)
 		
 	def equip_click(self, event: tk.Event) -> None:
@@ -481,6 +489,21 @@ class InventoryScreen(Screen):
 				success = item.use()
 				if success:
 					self.sub_from_inv(item.name, 1)
+					if is_equipable(item):
+						self.draw_equipment(item)
+						
+	def draw_equipment(self, item: EquipableItem):
+		if item.space[0] == "1 hand":
+			
+			icon_id: int = self.equip_scr.create_image(
+				3,
+				int(IBH * 1.5) + 3,
+				image=item.image,
+				anchor="nw"
+			)
+
+
+			
 
 	def add_to_inv(self, item: 'CollectableItem') -> None:
 		"""Add an item to the inventory data structure and draw it on the
