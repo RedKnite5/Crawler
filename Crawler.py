@@ -229,6 +229,7 @@ class CollectableItem(object):
 			image = Image.open(file_path(filename))
 			image = image.resize((IBW - 5, IBH - 5))
 			type(self).image = ImageTk.PhotoImage(image)
+			print(filename)
 
 	def __str__(self) -> str:
 		# return self.name
@@ -307,13 +308,13 @@ class Player(object):
 		self.equipment: dict[str, tuple[Space, int, 'EquipableItem']] = {}
 		self.status = None
 
-	def occupied_equipment(self) -> list[str]:
+	def occupied_equipment(self) -> dict[str, int]:
 		"""Figure out what equipment spaces are used"""
 
 		vals: tuple[tuple[Space, int, 'EquipableItem'], ...] = tuple(self.equipment.values())
-		total: list[str] = []
-		for i in vals:
-			total += [i[0][0]] * i[1]
+		total: dict[str, int] = {}
+		for space, num, _ in vals:
+			total[space[0]] = total.get(space[0], 0) + num
 		return total
 
 
@@ -635,7 +636,7 @@ class EquipableItem(UsableItem):
 		"""Equip the item"""
 
 		if (
-			p.occupied_equipment().count(self.space[0])
+			p.occupied_equipment().get(self.space[0], 0)
 			>= self.space[1]
 		):
 
@@ -708,11 +709,12 @@ class TieredItem(BuyableItem):
 
 		return proxy  # return func that returns the class
 
+
 class HealthPot(UsableItem, BuyableItem):
 	"""An item that heals the player"""
 
 	def __init__(self, *args, **kwargs) -> None:
-		super().__init__(filename="healthpotion.png", *args, **kwargs)
+		super().__init__(*args, filename="healthpotion.png", **kwargs)
 		self.cost: int = int(100 * COST_MUL)
 		self.name: str = "health potion"
 
@@ -732,7 +734,7 @@ class SlimeHeart(UsableItem):
 	"""An item that increases the player's max HP"""
 
 	def __init__(self, *args, **kwargs) -> None:
-		super().__init__(*args, **kwargs)
+		super().__init__(*args, filename="slimeheart.png", **kwargs)
 
 		self.name: str = "slime heart"
 
@@ -751,7 +753,7 @@ class Sword(BuyableItem, EquipableItem):
 	"""A basic weapon"""
 
 	def __init__(self, *args, **kwargs) -> None:
-		super().__init__(filename="sword.png", *args, **kwargs)
+		super().__init__(*args, filename="sword.png", **kwargs)
 		self.name: str = "sword"
 		self.cost = int(50 * COST_MUL)
 		self.space = ("1 hand", 2)
@@ -784,7 +786,7 @@ class Armor(TieredItem, EquipableItem):
 	# what if kwargs contains "tier=1.2"? I don't know what to
 	# do about that
 	def __init__(self, tier: int, *args, **kwargs) -> None:
-		super().__init__(*args, **kwargs)
+		super().__init__(*args, filename="armor.png", **kwargs)
 		self.name: str = f"tier {tier} armor"
 		self.tier: int = tier
 		self.cost = int(COST_MUL * 100 * self.tier)
@@ -836,38 +838,6 @@ def cur_room(xy: Sequence[int] | None = None) -> Room:
 	return room
 
 
-'''
-def restart() -> None:
-	"""Reset all the values of the game and prepare to start over"""
-
-	global dungeon, p, monsters_killed, gui, inventory
-
-	del inventory
-	del gui
-	del p
-	del dungeon
-
-	monsters_killed = 0
-
-	inventory = Inventory()
-
-	p = Player(inventory)
-	gui = GUI(inventory, p.damage, p.defence, p.max_health, p.loc, cur_room)
-
-	buyable_items = (Sword, HealthPot, armor_factory(1))
-	gui.misc_config(buyable_items, restart)
-
-	get_loot({"gold": Gold(amount=STARTING_GOLD)})
-
-	dungeon = Dungeon()
-	gui.dungeon_config(dungeon)
-
-	p.floor = dungeon.current_floor
-
-	gui.master.mainloop()
-'''
-
-
 def get_loot(loot: dict[str, CollectableItem]) -> None:
 	"""Add all loot items to inventroy"""
 
@@ -891,6 +861,13 @@ def normpdf(x: float, mean: float, sd: float) -> float:
 	return num / denom
 
 
+
+
+
+def main():
+	pass
+
+
 if __name__ == "__main__":
 	print("\n" * 3)
 
@@ -910,6 +887,7 @@ if __name__ == "__main__":
 		p.defence,
 		p.max_health,
 		p.loc,
+		p.occupied_equipment,
 		cur_room
 	)
 

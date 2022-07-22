@@ -384,7 +384,8 @@ class InventoryScreen(Screen):
 		buyable: dict[str, Callable[[], 'BuyableItem'] | type['BuyableItem']],
 		stock: tk.Menu,
 		leave_inv: Callable[[], None],
-		write_out: Callable[[str], None]) -> None:
+		write_out: Callable[[str], None],
+		occupied_player_equipment_slots: Callable[[], dict[str, int]]) -> None:
 
 		super().__init__(master)
 
@@ -394,6 +395,7 @@ class InventoryScreen(Screen):
 			Callable[[], 'BuyableItem'] | type['BuyableItem']] = buyable
 		self.stock: tk.Menu = stock
 		self.write_out: Callable[[str], None] = write_out
+		self.occupied_player_equipment_slots: Callable[[], dict[str, int]] = occupied_player_equipment_slots
 
 		for i in self.buyable_items:
 			# actual things you can buy
@@ -423,6 +425,15 @@ class InventoryScreen(Screen):
 
 		self.draw_grid()
 		self.draw_equip_slots()
+
+	def check_equipment_slots_available(self, item: EquipableItem) -> bool:
+		occupied: dict[str, int] = self.occupied_player_equipment_slots()
+		part, num = item.space
+		
+		#if occupied[part]
+
+		return True
+
 
 	def draw_grid(self) -> None:
 		"""Draw the inventory slot boxes"""
@@ -493,16 +504,38 @@ class InventoryScreen(Screen):
 						self.draw_equipment(item)
 						
 	def draw_equipment(self, item: EquipableItem):
+		"""Create images of equipment in the equipment slots"""
+
+		if not self.check_equipment_slots_available(item):
+			raise ValueError
+		
 		if item.space[0] == "1 hand":
+			x = 3
+			hand = "left"
+			if self.occupied_player_equipment_slots().get("1 hand", 0) == 1:
+				x += IBW * 2
+				hand = "right"
 			
 			icon_id: int = self.equip_scr.create_image(
-				3,
+				x,
 				int(IBH * 1.5) + 3,
 				image=item.image,
-				anchor="nw"
+				anchor="nw",
+				tags=hand + "_hand_equipment"
 			)
+			return
+		else:
+			slots = ("head", "body", "legs", "feet")
 
-
+			index = slots.index(item.space[0])
+					
+			self.equip_scr.create_image(
+				IBW + 3,
+				IBH * index + 3,
+				image=item.image,
+				anchor="nw",
+				tags=f"{item.space[0]}_equipment"
+			)
 			
 
 	def add_to_inv(self, item: 'CollectableItem') -> None:
@@ -747,6 +780,7 @@ class GUI(object):
 			p_defence: int,
 			p_max_health: int,
 			player_loc: list[int],
+			occupied_player_equipment_slots: Callable[[], dict[str, int]],
 			cur_room: 'OptionalSequenceOfInts') -> None:
 
 		self.screen = "navigation"
@@ -795,7 +829,8 @@ class GUI(object):
 			buyable_items,
 			self.stock,
 			self.leave_inv,
-			self.write_out
+			self.write_out,
+			occupied_player_equipment_slots
 		)
 
 		self.bat = Battle(

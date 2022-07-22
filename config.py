@@ -33,8 +33,8 @@ __all__ = [
 # whether enemies spawn or not
 ENEMIES = True
 # number of rooms wide
-DUN_W = 3
-DUN_H = 3
+DUN_W = 9
+DUN_H = 9
 # width of map screen in pixels
 W = 300
 H = 300
