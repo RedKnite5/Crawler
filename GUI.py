@@ -342,7 +342,7 @@ class Navigation(Screen):
 	def new_floor(self) -> tuple[tk.Canvas, int]:
 		"""Create a new Canvas to display the map of the floor"""
 
-		map = tk.Canvas(self.frame, width=W, height=H)
+		map: tk.Canvas = tk.Canvas(self.frame, width=W, height=H)
 		self.floors.append(map)
 		self.create_display(map)
 		return (map, len(self.floors))  # floor canvas and floor number
@@ -355,12 +355,14 @@ class Navigation(Screen):
 		if hasattr(self, "map"):
 			self.map.unbind("<Button 1>")
 
-		self.map = self.floors[num]
+		self.map: tk.Canvas = self.floors[num]
 		self.map.grid(row=0, column=3, rowspan=5)
 		# may need to do current_floor.disp.focus_set()
 		self.map.bind("<Button 1>", self.room_info)
 	
 	def advance_floor(self):
+		"""Create the next floor then move to it"""
+
 		_, num = self.new_floor()
 		self.change_floor(num)
 
@@ -503,7 +505,7 @@ class InventoryScreen(Screen):
 			fill="grey",
 			tags="right hand"
 		)
-		
+
 	def equip_click(self, event: tk.Event) -> None:
 		""" """
 		
@@ -526,7 +528,7 @@ class InventoryScreen(Screen):
 					self.sub_from_inv(item.name, 1)
 					if is_equipable(item):
 						self.draw_equipment(item)
-						
+
 	def draw_equipment(self, item: EquipableItem):
 		"""Create images of equipment in the equipment slots"""
 
@@ -560,7 +562,6 @@ class InventoryScreen(Screen):
 				anchor="nw",
 				tags=f"{item.space[0]}_equipment"
 			)
-			
 
 	def add_to_inv(self, item: 'CollectableItem') -> None:
 		"""Add an item to the inventory data structure and draw it on the
