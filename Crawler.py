@@ -12,7 +12,8 @@ from typing import (TYPE_CHECKING,
 					ClassVar,
 					TypeVar,
 					Iterator,
-					Type)
+					Type,
+					TypeAlias)
 
 from PIL import Image  # type: ignore
 from PIL import ImageOps  # type: ignore
@@ -32,7 +33,8 @@ from config import *
 # ToDo: remove quotes from annotations
 
 if TYPE_CHECKING:
-	Space = tuple[str, int]
+	Space: TypeAlias = tuple[str, int]
+	EquipmentSpec: TypeAlias = tuple[Space, int, 'EquipableItem']
 
 
 class Dungeon(object):
@@ -49,7 +51,10 @@ class Dungeon(object):
 	def __getitem__(self, index: int) -> 'Floor':
 		return self.floors[index]
 
-	def gen_floor(self, up_stair_location: dict[str, int], level: str ="+1") -> None:
+	def gen_floor(
+		self,
+		up_stair_location: dict[str, int],
+		level: str = "+1") -> None:
 		"""Create the next single floor of the dungeon"""
 
 		if level[0] == "+" and level[1:].isdigit():
@@ -72,7 +77,10 @@ class Dungeon(object):
 class Floor(object):
 	"""Whole floor of the dungeon"""
 
-	def __init__(self, floor: int, upstairs: dict[str, int] | None = None) -> None:
+	def __init__(
+		self,
+		floor: int,
+		upstairs: dict[str, int] | None = None) -> None:
 		"""Create a floor and populate it"""
 		
 		if floor < 0:
@@ -229,7 +237,6 @@ class CollectableItem(object):
 			image = Image.open(file_path(filename))
 			image = image.resize((IBW - 5, IBH - 5))
 			type(self).image = ImageTk.PhotoImage(image)
-			print(filename)
 
 	def __str__(self) -> str:
 		# return self.name
@@ -305,13 +312,13 @@ class Player(object):
 		self.experiance: int = 0
 		self.lvl: int = 1
 		self.inven: Inventory = inven
-		self.equipment: dict[str, tuple[Space, int, 'EquipableItem']] = {}
+		self.equipment: dict[str, EquipmentSpec] = {}
 		self.status = None
 
 	def occupied_equipment(self) -> dict[str, int]:
 		"""Figure out what equipment spaces are used"""
 
-		vals: tuple[tuple[Space, int, 'EquipableItem'], ...] = tuple(self.equipment.values())
+		vals: tuple[EquipmentSpec, ...] = tuple(self.equipment.values())
 		total: dict[str, int] = {}
 		for space, num, _ in vals:
 			total[space[0]] = total.get(space[0], 0) + num
@@ -422,7 +429,10 @@ class Stairs(Encounter):
 		gui.enc.remove()
 		gui.nav.show()
 		gui.screen = "navigation"
-
+		
+		gui.nav.advance_floor()
+		
+		'''
 		dungeon.current_floor.disp.coords(
 			"player",
 			(
@@ -432,6 +442,7 @@ class Stairs(Encounter):
 				SMH * p.loc[1] + SMH
 			)
 		)
+		'''
 
 	def meet(self, disp: str = "center") -> None:
 		"""Dislpay the stairs image"""
@@ -859,8 +870,6 @@ def normpdf(x: float, mean: float, sd: float) -> float:
 	denom = (2 * pi * var) ** .5
 	num = exp(-(float(x) - float(mean)) ** 2 / (2 * var))
 	return num / denom
-
-
 
 
 

@@ -141,25 +141,25 @@ class Navigation(Screen):
 		self.healthbar.create_rectangle(10, 10, 10 + 100, 30)
 
 		self.create_healthbar(p_max_health)
-
-		self.map = tk.Canvas(self.frame, width=W, height=H)
-		self.map.grid(row=0, column=3, rowspan=5)
-
-		self.create_display()
-		# may need to do current_floor.disp.focus_set()
-		self.map.bind("<Button 1>", self.room_info)
+		
+		self.floors: list[tk.Canvas] = []
+		
+		self.advance_floor()
 
 		self.nav_bindings()
 
-	def create_display(self) -> None:
+	def create_display(self, canvas: tk.Canvas | None = None) -> None:
 		"""Create the map for the player to see"""
+
+		if canvas is None:
+			canvas = self.map
 
 		# display creation
 		for i in range(DUN_W):
 			for k in range(DUN_H):
 				# if there is a space in the tags tkinter will split it up
 				# do not add one
-				self.map.create_rectangle(
+				canvas.create_rectangle(
 					SMW * i,
 					SMH * k,
 					SMW * (i + 1),
@@ -169,7 +169,7 @@ class Navigation(Screen):
 				)
 
 		# player icon creation
-		self.map.create_oval(
+		canvas.create_oval(
 			SMW * self.player_loc[0],
 			SMH * self.player_loc[1],
 			SMW * self.player_loc[0] + SMW,
@@ -339,6 +339,30 @@ class Navigation(Screen):
 			anchor="center"
 		)
 
+	def new_floor(self) -> tuple[tk.Canvas, int]:
+		"""Create a new Canvas to display the map of the floor"""
+
+		map = tk.Canvas(self.frame, width=W, height=H)
+		self.floors.append(map)
+		self.create_display(map)
+		return (map, len(self.floors))  # floor canvas and floor number
+
+	def change_floor(self, num: int):
+		"""Move to a desired floor"""
+
+		num -= 1  # zero indexed
+
+		if hasattr(self, "map"):
+			self.map.unbind("<Button 1>")
+
+		self.map = self.floors[num]
+		self.map.grid(row=0, column=3, rowspan=5)
+		# may need to do current_floor.disp.focus_set()
+		self.map.bind("<Button 1>", self.room_info)
+	
+	def advance_floor(self):
+		_, num = self.new_floor()
+		self.change_floor(num)
 
 class GameOver(Screen):
 	"""Screen for after the player loses"""
