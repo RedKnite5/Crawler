@@ -1,12 +1,16 @@
 
 import typing
-from typing import TypeAlias
+from typing import Literal
+
+def double(x):
+	return x + x
+
+def foo(x: Literal[5, 6]):
+	print(x)
 
 
+foo(5)
+g = 2
+foo(double(g))
 
-	
-x: TypeAlias = list[int]
-
-b: x = [1, 2, 3]
-print(x)
 

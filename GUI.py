@@ -15,20 +15,27 @@ from errors import *
 from config import *
 
 if TYPE_CHECKING:
-	from typing import Protocol
-	
-	from PIL import ImageTk
-	
+	from typing import Protocol, TypeAlias
+
 	from inven import Inventory
 	from Crawler import (CollectableItem, UsableItem,
 						EquipableItem, BuyableItem,
 						TieredItem, Room, Dungeon)
 
+	# need to be Protocols to handle optional arguments
 	class OptionalSequenceOfInts(Protocol):
 		def __call__(self, xy: Sequence[int] | None = None) -> Room: ...
-	
+
 	class TkEventOrNone(Protocol):
 		def __call__(self, event: tk.Event | None = None) -> None: ...
+	
+	class PlayerP(Protocol):
+		damage: int
+		defence: int
+		max_health: int
+		loc: list[int]
+		
+		def occupied_equipment(self) -> dict[str, int]: ...
 
 __all__ = ["GUI"]
 
@@ -104,13 +111,13 @@ class Navigation(Screen):
 			p_max_health: int,
 			p_loc: list[int],
 			inv_mode: Callable[[], None],
-			cur_room: 'OptionalSequenceOfInts',
+			cur_room: OptionalSequenceOfInts,
 			write_out: Callable[[str], None]) -> None:
 
 		super().__init__(master)
 
 		self.player_loc: list[int] = p_loc
-		self.cur_room: 'OptionalSequenceOfInts' = cur_room
+		self.cur_room: OptionalSequenceOfInts = cur_room
 		self.write_out = write_out
 
 		# movement & inventory button creation
@@ -133,6 +140,9 @@ class Navigation(Screen):
 
 		# inventory button configuration
 		self.b[4].configure(text="Inventory", command=inv_mode)
+
+		self.floor_num_label = tk.Label(self.frame, text="Floor: 1")
+		self.floor_num_label.grid(row=0, column=4)
 
 		# health bar creation
 		self.healthbar = tk.Canvas(self.frame, width=100 + 10, height=30)
@@ -232,7 +242,7 @@ class Navigation(Screen):
 		event.widget.focus()
 
 	# factory necessary for tkinter key binding reasons
-	def movement_factory(_self, direction: str) -> 'TkEventOrNone':
+	def movement_factory(_self, direction: str) -> TkEventOrNone:
 		"""Factory for moving the character functions"""
 
 		def move_func(self: Navigation, event: tk.Event | None = None) -> None:
@@ -359,6 +369,8 @@ class Navigation(Screen):
 		self.map.grid(row=0, column=3, rowspan=5)
 		# may need to do current_floor.disp.focus_set()
 		self.map.bind("<Button 1>", self.room_info)
+		
+		self.floor_num_label.config(text=f"Floor {num+1}")
 	
 	def advance_floor(self):
 		"""Create the next floor then move to it"""
@@ -521,7 +533,7 @@ class InventoryScreen(Screen):
 		index: int = y * INV_WIDTH + x
 
 		if index in self.inven:
-			item = self.inven[index]
+			item: CollectableItem = self.inven[index]
 			if is_usable(item):
 				success = item.use()
 				if success:
@@ -563,7 +575,7 @@ class InventoryScreen(Screen):
 				tags=f"{item.space[0]}_equipment"
 			)
 
-	def add_to_inv(self, item: 'CollectableItem') -> None:
+	def add_to_inv(self, item: CollectableItem) -> None:
 		"""Add an item to the inventory data structure and draw it on the
 		inventory screen"""
 
@@ -799,23 +811,24 @@ class GUI(object):
 
 	def __init__(
 			self,
-			inven: 'Inventory',
-			buyable: tuple[Callable[[], 'BuyableItem'] | type['BuyableItem'], ...],
-			p_damage: int,
-			p_defence: int,
-			p_max_health: int,
-			player_loc: list[int],
-			occupied_player_equipment_slots: Callable[[], dict[str, int]],
-			cur_room: 'OptionalSequenceOfInts') -> None:
+			inven: Inventory,
+			buyable: tuple[Callable[[], BuyableItem] | type[BuyableItem], ...],
+			player: PlayerP,
+			#p_damage: int,
+			#p_defence: int,
+			#p_max_health: int,
+			#player_loc: list[int],
+			#occupied_player_equipment_slots: Callable[[], dict[str, int]],
+			cur_room: OptionalSequenceOfInts) -> None:
 
-		self.screen = "navigation"
+		self.screen: Screens = Screens.NAVIGATION
 
 		self.master = tk.Tk()
 		self.master.geometry("%dx%d+%d+%d" % (W + 300, H + 70, 0, 0))
 
-		self.player_loc: list[int] = player_loc
+		self.player_loc: list[int] = player.loc
 		
-		self.cur_room: 'OptionalSequenceOfInts' = cur_room
+		self.cur_room: OptionalSequenceOfInts = cur_room
 
 		# window name
 		self.master.title(string="The Dungeon")
@@ -829,7 +842,7 @@ class GUI(object):
 		self.shop.add_cascade(menu=self.stock, label="Shop")
 
 		buyable_items: dict[str,
-			Callable[[], 'BuyableItem'] | type['BuyableItem']
+			Callable[[], BuyableItem] | type[BuyableItem]
 		] = {item().name: item for item in buyable}
 
 		# add menu to screen
@@ -837,7 +850,7 @@ class GUI(object):
 
 		self.nav = Navigation(
 			self.master,
-			p_max_health,
+			player.max_health,
 			self.player_loc,
 			self.inventory_mode,
 			self.cur_room,
@@ -855,7 +868,7 @@ class GUI(object):
 			self.stock,
 			self.leave_inv,
 			self.write_out,
-			occupied_player_equipment_slots
+			player.occupied_equipment
 		)
 
 		self.bat = Battle(
@@ -883,7 +896,7 @@ class GUI(object):
 		self.stats.widgets["bat"].grid(row=1, column=3)
 		self.stats.widgets["inv"].grid(row=0, column=1)
 
-		self.update_stats(p_damage, p_defence)
+		self.update_stats(player.damage, player.defence)
 
 		self.out = MultiframeWidget(
 			{
@@ -900,7 +913,6 @@ class GUI(object):
 		self.out.widgets["inv"].grid(row=3, column=0, columnspan=2)
 
 		self.nav.show()
-		self.screen = "navigation"
 
 	def show_image(
 		self,
@@ -925,7 +937,7 @@ class GUI(object):
 
 		self.inv.show()
 
-	def dungeon_config(self, dungeon: 'Dungeon') -> None:
+	def dungeon_config(self, dungeon: Dungeon) -> None:
 		"""Configure settings that require that the dungeon object exist"""
 
 		self.dungeon: 'Dungeon' = dungeon
@@ -934,9 +946,9 @@ class GUI(object):
 		"""Switch from the inventory screen to the previous screen"""
 
 		self.inv.remove()
-		if self.screen == "navigation":
+		if self.screen is Screens.NAVIGATION:
 			self.nav.show()
-		elif self.screen == "battle":
+		elif self.screen is Screens.BATTLE:
 			self.bat.show()
 
 	def update_stats(self, damage: int, defence: int) -> None:
@@ -962,12 +974,12 @@ class GUI(object):
 	def leave(self) -> None:
 		"""Flee a fight or leave a room"""
 
-		if self.screen == "fight":
+		if self.screen is Screens.BATTLE:
 			self.flee()
 		else:
 			self.enc.remove()
 			self.nav.show()
-			self.screen = "navigation"
+			self.screen = Screens.NAVIGATION
 
 			self.nav.draw_encounter(
 				self.cur_room().en.icon,
@@ -986,7 +998,7 @@ class GUI(object):
 	def lose(self) -> None:
 		"""Change screen to the game over screen"""
 
-		self.screen = "game over"
+		self.screen = Screens.GAME_OVER
 		self.clear_screen()
 		self.gmo.show()
 
@@ -997,7 +1009,7 @@ class GUI(object):
 		if chance > 50:
 			self.bat.remove()
 			self.nav.show()
-			self.screen = "navigation"
+			self.screen = Screens.NAVIGATION
 
 			# create an icon for an enemy the player knows about
 			self.nav.draw_enemy_marker(*self.player_loc)

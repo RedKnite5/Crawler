@@ -359,7 +359,7 @@ class Encounter(object):
 	def meet(self, disp: str = "center") -> None:
 		"""Start the encounter"""
 
-		gui.screen = "encounter"
+		gui.screen = Screens.ENCOUNTER
 		self.show_ico(place=disp)
 
 	def interact(self) -> None:
@@ -428,7 +428,7 @@ class Stairs(Encounter):
 		# gui.navigation_widgets[0] = dungeon.current_floor.disp
 		gui.enc.remove()
 		gui.nav.show()
-		gui.screen = "navigation"
+		gui.screen = Screens.NAVIGATION
 		
 		gui.nav.advance_floor()
 		
@@ -451,7 +451,7 @@ class Stairs(Encounter):
 
 		gui.nav.draw_encounter(self.icon, p.loc[0], p.loc[1])
 
-		gui.screen = "stairs"
+		gui.screen = Screens.STAIRS
 		gui.clear_screen()
 		gui.enc.show()
 
@@ -497,7 +497,7 @@ class Enemy(Encounter):
 
 		super().meet(disp)
 
-		gui.screen = "battle"
+		gui.screen = Screens.BATTLE
 		gui.nav.remove()
 		gui.bat.show()
 
@@ -547,7 +547,7 @@ class Enemy(Encounter):
 
 		gui.bat.remove()
 		gui.nav.show()
-		gui.screen = "navigation"
+		gui.screen = Screens.NAVIGATION
 
 
 class Goblin(Enemy):
@@ -892,17 +892,11 @@ if __name__ == "__main__":
 	gui = GUI(
 		inventory,
 		buyable,
-		p.damage,
-		p.defence,
-		p.max_health,
-		p.loc,
-		p.occupied_equipment,
+		p,
 		cur_room
 	)
 
 	get_loot({"gold": Gold(amount=STARTING_GOLD)})
-
-	# gui.player_config(p)
 
 	dungeon = Dungeon()
 	gui.dungeon_config(dungeon)

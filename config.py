@@ -1,6 +1,8 @@
 
 """Configuration file for constants"""
 
+from enum import Enum
+
 __all__ = [
 	"ENEMIES",
 	"DUN_W",
@@ -27,8 +29,27 @@ __all__ = [
 	"NON_VIOLENT_ENC_CUTOFF",
 	"STARTING_ROOM_TYPE",
 	"DOWN_STAIRS_TYPE",
-	"UP_STAIRS_TYPE"
+	"UP_STAIRS_TYPE",
+	"Screens"
 ]
+
+class Screens(Enum):
+	NAVIGATION = "navigation"
+	BATTLE = "battle"
+	GAME_OVER = "game over"
+	STAIRS = "stairs"
+	ENCOUNTER = "encounter"
+
+class Anchors(Enum):
+	N = "n"
+	NE = "ne"
+	E = "e"
+	NW = "nw"
+	W = "w"
+	CENTER = "center"
+	S = "s"
+	SE = "se"
+	SW = "sw"
 
 # whether enemies spawn or not
 ENEMIES = True
